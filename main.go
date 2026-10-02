@@ -65,6 +65,10 @@ type options struct {
 	// mcpConfig — конфигурация реестра MCP-серверов (окно «MCP-серверы»,
 	// длинный флоу); пусто — MCP_CONFIG, иначе встроенная.
 	mcpConfig string
+	// kb — путь к базе знаний (kb.db); пусто — KB_DB, иначе <data>/kb.db.
+	kb string
+	// embedURL — адрес эмбеддера; пусто — EMBED_BASE_URL, иначе сайдкар по умолчанию.
+	embedURL string
 }
 
 // facts — адрес демона фактов: флаг, иначе TRIVIA_SERVER, иначе адрес по
@@ -105,6 +109,8 @@ func parseFlags() options {
 	flag.StringVar(&o.reportOut, "report-out", filepath.Join("examples", "report.md"), "куда записать отчёт -report")
 	flag.StringVar(&o.factsServer, "facts-server", feed.DefaultServer, "адрес демона «Интересных фактов» (animals-mcp -http, механизм trivia и раздел интерфейса); по умолчанию TRIVIA_SERVER, иначе этот; пусто — выключить. Токен — MCP_TOKEN")
 	flag.StringVar(&o.mcpConfig, "mcp-config", "", "конфигурация реестра MCP-серверов (см. mcp-servers.example.json); пусто — MCP_CONFIG, иначе встроенная: sources, daemon, notes")
+	flag.StringVar(&o.kb, "kb", "", "база знаний (собирается командой go run ./cmd/kb index); пусто — KB_DB, иначе <data>/kb.db")
+	flag.StringVar(&o.embedURL, "embedder", "", "адрес эмбеддера (OpenAI-совместимый /v1/embeddings: сайдкар embedder/, Ollama, облако); пусто — EMBED_BASE_URL, иначе http://127.0.0.1:8777")
 	flag.Parse()
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "facts-server" {
@@ -178,6 +184,7 @@ func main() {
 	exts = append(exts, a.Feed.Extension()...)
 	exts = append(exts, a.Pipes.Extension()...)
 	exts = append(exts, a.Hub.Extension()...)
+	exts = append(exts, a.KB.Extension()...)
 	handler := server.New(manager, static, meta, exts...)
 
 	listener, err := net.Listen("tcp", o.addr)
@@ -195,6 +202,7 @@ func main() {
 	fmt.Println("  свод:       " + guide.Store.DisplayPath(invariants.GuideID))
 	fmt.Println("  механизмы:  " + defaults.String())
 	fmt.Println("  факты:      " + factsLine(a.Feed.Remote))
+	fmt.Println("  база:       " + kbLine(a.KB))
 	if defaults.On(features.MCP) {
 		fmt.Println("  MCP:        включён для новых диалогов; сервер запустится при первом ходе")
 	}

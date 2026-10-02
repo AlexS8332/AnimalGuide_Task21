@@ -18,6 +18,7 @@ import (
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/hub"
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/hubapi"
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/invariants"
+	"github.com/AlexS8332/AnimalGuide_Task21/internal/kbapi"
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/mcp"
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/memory"
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/persona"
@@ -49,6 +50,9 @@ type app struct {
 	// агента через них: REST окна «MCP-серверы». Серверы поднимаются по
 	// кнопке «Подключить все» или при первом флоу, не при старте.
 	Hub *hubapi.API
+	// KB — база знаний (kb.db): REST окна «База знаний». Базы может не
+	// быть — окно тогда подскажет, как её собрать.
+	KB *kbapi.API
 	// Close гасит клиент и процесс MCP-сервера, если он запускался, и
 	// соединение с демоном фактов.
 	Close func()
@@ -111,11 +115,12 @@ func wire(o options, registry *features.Registry, defaults features.Set, runner 
 	if err != nil {
 		return app{}, err
 	}
+	know := openKB(o, dataDir)
 	return app{Manager: manager, People: people, Compile: compile, Guide: guide, Local: local, Fetcher: fetcher,
 		Sources: sources, Feed: trivia,
 		Pipes: &feed.Pipelines{Remote: trivia.Remote, LLM: runner.LLM, Model: runner.Model},
-		Hub:   servers.api,
-		Close: func() { client.Close(); launcher.Close(); trivia.Remote.Close(); servers.close() }}, nil
+		Hub:   servers.api, KB: know.api,
+		Close: func() { client.Close(); launcher.Close(); trivia.Remote.Close(); servers.close(); know.close() }}, nil
 }
 
 // hubParts — реестр серверов и его REST.
