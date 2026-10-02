@@ -41,7 +41,16 @@ type KB struct {
 	// Embedder — nil → embed.FromEnv, если сайдкар отвечает; иначе индекс
 	// без векторов, и проверки векторного поиска — «не определено».
 	Embedder embed.Embedder
+	// CacheDB — общий кэш векторов: kb.db, из kb_embed_cache которой
+	// векторы берутся только на чтение (новые пишутся во временную базу
+	// прогона). Пусто → DefaultCacheDB, если файл есть; "-" — без общего
+	// кэша. Без него прогон с настоящей моделью кодирует корпус с нуля
+	// (минуты на CPU).
+	CacheDB string
 }
+
+// DefaultCacheDB — kb.db в корне репозитория (её собирает kb index).
+const DefaultCacheDB = "kb.db"
 
 // NewKB — И-9 с настройками по умолчанию.
 func NewKB() *KB { return &KB{} }
@@ -113,6 +122,15 @@ func (t *KB) Run(ctx context.Context, s *Stand, r *Result) error {
 	if err := store.PutCorpus(ctx, docs, m); err != nil {
 		return err
 	}
+	var cached *embed.Cached
+	if emb != nil {
+		cached = &embed.Cached{E: emb, C: store}
+		if shared := t.sharedCache(ctx, r, emb.Model()); shared != nil {
+			defer shared.Close()
+			cached.C = embed.Layered{Own: store, Shared: shared}
+		}
+		emb = cached
+	}
 	build := func() (map[string][]kb.Chunk, error) {
 		out := map[string][]kb.Chunk{}
 		if _, err := store.Build(ctx, kb.NewStructure(0, 0), emb, nil); err != nil {
@@ -137,6 +155,9 @@ func (t *KB) Run(ctx context.Context, s *Stand, r *Result) error {
 	first, err := build()
 	if err != nil {
 		return fmt.Errorf("И-9: сборка: %w", err)
+	}
+	if cached != nil {
+		r.metric("кэш эмбеддингов (первая сборка)", laneKB, "%d попаданий, %d промахов", cached.Hits, cached.Misses)
 	}
 	second, err := build()
 	if err != nil {
@@ -195,12 +216,13 @@ func (t *KB) Run(ctx context.Context, s *Stand, r *Result) error {
 		r.metric("чанков", x.Index, "%d (p50 %d, p95 %d токенов)", x.Chunks, x.P50, x.P95)
 		r.metric("на стыке разделов / разрезано разделов", x.Index, "%.1f %% / %.1f %%", 100*x.MixedShare, 100*x.SplitSections)
 		r.metric("перекрытие / оборвано посреди предложения", x.Index, "%.1f %% / %.1f %%", 100*x.OverlapShare, 100*x.MidSentence)
+		r.metric("доказательство целиком в одном чанке", x.Index, "%.1f %% из %d", 100*x.WholeEvidence, x.Evidence)
 		r.metric("сборка", x.Index, "%.1f с, %d КБ", x.BuildSeconds, x.Bytes/1024)
 	}
 	for _, x := range rep.Retrieval {
 		lane := x.Index + " " + string(x.Mode)
-		r.metric("recall@1/3/5, MRR — "+x.Split, lane, "%.2f / %.2f / %.2f, %.2f (вопросов %d, разорвано доказательств %.0f %%)",
-			x.Recall[1], x.Recall[3], x.Recall[5], x.MRR, x.N, 100*x.BrokenEvidence)
+		r.metric("recall@1/3/5, MRR — "+x.Split, lane, "%.2f / %.2f / %.2f, %.2f (вопросов %d, разорвано доказательств %.0f %%; все доказательства в топ-5 — %.2f)",
+			x.Recall[1], x.Recall[3], x.Recall[5], x.MRR, x.N, 100*x.BrokenEvidence, x.RecallAll5)
 	}
 	named := len(rep.Conclusion) > 0 && strings.ContainsAny(rep.Conclusion[0], "0123456789")
 	r.yes("вывод сравнения назван числами", laneKB, named, strings.Join(firstN(rep.Conclusion, 1), ""))
@@ -209,7 +231,14 @@ func (t *KB) Run(ctx context.Context, s *Stand, r *Result) error {
 	}
 
 	what := "structure не хуже fixed по recall@5 (dev+test)"
-	sR, fR, n := recallAt5(rep, string(kb.Structure)), recallAt5(rep, string(kb.Fixed)), 0
+	// Без эмбеддера строк dense нет вовсе (dense откатился на BM25 —
+	// строки помечены bm25): берём их, иначе в причине было бы «0.00
+	// против 0.00».
+	mode := kb.Dense
+	if emb == nil {
+		mode = kb.BM25
+	}
+	sR, fR, n := recallAt5(rep, string(kb.Structure), mode), recallAt5(rep, string(kb.Fixed), mode), 0
 	for _, x := range rep.Retrieval {
 		if x.Index == string(kb.Structure) && x.Mode == kb.Dense {
 			n += x.N
@@ -230,12 +259,41 @@ func (t *KB) Run(ctx context.Context, s *Stand, r *Result) error {
 	return nil
 }
 
-// recallAt5 — recall@5 dense по dev+test вместе (взвешенно по числу
+// sharedCache — общий кэш векторов (CacheDB) только для чтения; nil — его
+// нет или он не открылся (это не ошибка испытания: кодирование просто
+// пойдёт в модель — об этом заметка).
+func (t *KB) sharedCache(ctx context.Context, r *Result, model string) *kb.Store {
+	path := t.CacheDB
+	switch path {
+	case "-":
+		return nil
+	case "":
+		path = DefaultCacheDB
+		if _, err := os.Stat(path); err != nil {
+			return nil
+		}
+	}
+	shared, err := kb.OpenCache(ctx, path)
+	if err != nil {
+		r.note("Общий кэш эмбеддингов %s не открылся (%v): векторы кодируются заново.", path, err)
+		return nil
+	}
+	n, err := shared.CacheSize(ctx, model)
+	if err != nil {
+		shared.Close()
+		r.note("Общий кэш эмбеддингов %s не читается (%v): векторы кодируются заново.", path, err)
+		return nil
+	}
+	r.metric("общий кэш эмбеддингов (только чтение)", laneKB, "%s: %d векторов %s", path, n, model)
+	return shared
+}
+
+// recallAt5 — recall@5 режима по dev+test вместе (взвешенно по числу
 // вопросов).
-func recallAt5(rep kb.Report, index string) float64 {
+func recallAt5(rep kb.Report, index string, mode kb.Mode) float64 {
 	hit, n := 0.0, 0
 	for _, x := range rep.Retrieval {
-		if x.Index == index && x.Mode == kb.Dense {
+		if x.Index == index && x.Mode == mode {
 			hit += x.Recall[5] * float64(x.N)
 			n += x.N
 		}

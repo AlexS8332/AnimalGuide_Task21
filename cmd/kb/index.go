@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/corpus"
@@ -18,32 +19,61 @@ func init() {
 }
 
 // defaultDB — kb.db в рабочем каталоге: пересобираемый артефакт, в git не
-// попадает.
+// попадает. Переменная KB_DB (та же, что у приложения) задаёт другой путь.
 const defaultDB = "kb.db"
+
+// envDB — имя переменной окружения с путём к базе.
+const envDB = "KB_DB"
+
+// dbFlag — общий флаг -db: по умолчанию KB_DB, иначе kb.db.
+func dbFlag(fs *flag.FlagSet) *string {
+	def := defaultDB
+	if v := strings.TrimSpace(os.Getenv(envDB)); v != "" {
+		def = v
+	}
+	return fs.String("db", def, "файл базы знаний (по умолчанию "+envDB+", иначе "+defaultDB+")")
+}
 
 // e5Tokens — предел входа e5 (512 токенов) с запасом на префикс и путь
 // раздела в EmbedText: длиннее — модель молча обрежет конец чанка.
 const e5Tokens = 480
 
-// embedderFlag — общий флаг выбора эмбеддера index/search/eval.
-func embedderFlag(fs *flag.FlagSet) *string {
-	return fs.String("embedder", "auto",
-		"эмбеддер: auto (HTTP по EMBED_BASE_URL, если отвечает, иначе без векторов), http, hash (тестовый), none")
+// embedderFlags — общие флаги выбора эмбеддера index/search/eval: вид
+// (-embedder) и адрес (-embed-url). У приложения -embedder — это адрес;
+// здесь адрес — -embed-url, а -embedder выбирает вид, потому что kb умеет
+// ещё тестовый hash и сборку без векторов.
+type embedderFlags struct{ kind, url *string }
+
+func embedderFlag(fs *flag.FlagSet) embedderFlags {
+	return embedderFlags{
+		kind: fs.String("embedder", "auto",
+			"вид эмбеддера: auto (HTTP, если отвечает, иначе без векторов), http, hash (тестовый), none"),
+		url: fs.String("embed-url", "",
+			"адрес эмбеддера (OpenAI-совместимый /v1/embeddings) для auto и http; пусто — "+embed.EnvBaseURL+", иначе "+embed.DefaultBaseURL),
+	}
 }
 
-// pickEmbedder переводит флаг в эмбеддер. auto — HTTP по embed.FromEnv,
-// если Health ok, иначе nil с предупреждением; http — HTTP без проверки
-// (ошибка всплывёт при первом запросе). nil — без векторов.
-func pickEmbedder(ctx context.Context, kind string, errOut io.Writer) (embed.Embedder, error) {
-	switch kind {
+// pickEmbedder переводит флаги в эмбеддер. auto — HTTP по embed.FromEnv
+// (адрес — -embed-url, если задан), если Health ok, иначе nil с
+// предупреждением; http — HTTP без проверки (ошибка всплывёт при первом
+// запросе). nil — без векторов.
+func pickEmbedder(ctx context.Context, f embedderFlags, errOut io.Writer) (embed.Embedder, error) {
+	fromEnv := func() *embed.HTTP {
+		h := embed.FromEnv()
+		if u := strings.TrimSpace(*f.url); u != "" {
+			h.BaseURL = u
+		}
+		return h
+	}
+	switch kind := *f.kind; kind {
 	case "none":
 		return nil, nil
 	case "hash":
 		return embed.Hash{}, nil
 	case "http":
-		return embed.FromEnv(), nil
+		return fromEnv(), nil
 	case "auto", "":
-		h := embed.FromEnv()
+		h := fromEnv()
 		st := h.Health(ctx)
 		if st.OK {
 			fmt.Fprintf(errOut, "эмбеддер: %s (%s", h.Model(), h.BaseURL)
@@ -56,7 +86,7 @@ func pickEmbedder(ctx context.Context, kind string, errOut io.Writer) (embed.Emb
 		fmt.Fprintf(errOut, "предупреждение: эмбеддер %s недоступен: %s\n  %s\n", h.BaseURL, st.Why, st.Hint)
 		return nil, nil
 	}
-	return nil, fmt.Errorf("неизвестный эмбеддер %q (auto, http, hash, none)", kind)
+	return nil, fmt.Errorf("неизвестный эмбеддер %q (auto, http, hash, none)", *f.kind)
 }
 
 // openExisting открывает базу, которая уже должна быть: search/stats/eval
@@ -70,7 +100,7 @@ func openExisting(ctx context.Context, path string) (*kb.Store, error) {
 
 func runIndex(ctx context.Context, args []string, out, errOut io.Writer) int {
 	fs := newFlagSet("index", "[флаги]", errOut)
-	dbPath := fs.String("db", defaultDB, "файл базы знаний")
+	dbPath := dbFlag(fs)
 	dir := fs.String("corpus", "corpus", "каталог корпуса")
 	strategy := fs.String("strategy", "all", "стратегия: fixed, structure или all (structure, затем fixed по медиане structure)")
 	which := embedderFlag(fs)
@@ -87,7 +117,7 @@ func runIndex(ctx context.Context, args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "ошибка: неизвестная стратегия %q (fixed, structure, all)\n", *strategy)
 		return exitUsage
 	}
-	emb, err := pickEmbedder(ctx, *which, errOut)
+	emb, err := pickEmbedder(ctx, which, errOut)
 	if err != nil {
 		fmt.Fprintln(errOut, "ошибка:", err)
 		return exitUsage

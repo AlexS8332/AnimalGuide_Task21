@@ -73,7 +73,7 @@ func TestIndexSearchStatsEval(t *testing.T) {
 	md, js := filepath.Join(dir, "out", "chunking.md"), filepath.Join(dir, "out", "chunking.json")
 	code, out, errOut = runKB("eval", "-db", dbPath, "-embedder", "hash", "-questions", "../../eval/questions.json",
 		"-out", md, "-json", js, "-bm25")
-	if code != exitOK || !strings.Contains(out, "- structure: recall@1") || !strings.Contains(out, "BM25 (справочно)") {
+	if code != exitOK || !strings.Contains(out, "- structure: recall@5") || !strings.Contains(out, "BM25 (справочно)") {
 		t.Fatalf("eval: %d\n%s\n%s", code, out, errOut)
 	}
 	raw, err := os.ReadFile(md)
@@ -85,9 +85,32 @@ func TestIndexSearchStatsEval(t *testing.T) {
 	if err != nil || json.Unmarshal(raw, &r) != nil || len(r.Stats) != 2 || len(r.Retrieval) != 8 {
 		t.Fatalf("json: %v %+v", err, r.Stats)
 	}
-	code, out, _ = runKB("stats", "-db", dbPath)
-	if !strings.Contains(out, "Последнее сравнение") {
-		t.Fatalf("stats после eval:\n%s", out)
+	// KB_DB — путь базы по умолчанию.
+	t.Setenv("KB_DB", dbPath)
+	code, out, _ = runKB("stats")
+	if code != exitOK || !strings.Contains(out, "Последнее сравнение") {
+		t.Fatalf("stats после eval (KB_DB):\n%s", out)
+	}
+
+	// JSON — рядом с markdown, без -json.
+	md2 := filepath.Join(dir, "other", "report.md")
+	if code, out, errOut := runKB("eval", "-embedder", "hash", "-questions", "../../eval/questions.json", "-out", md2); code != exitOK {
+		t.Fatalf("eval -out: %d\n%s\n%s", code, out, errOut)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "other", "report.json")); err != nil {
+		t.Fatalf("JSON рядом с markdown: %v", err)
+	}
+	// Dense откатился на BM25 — в отчёт по умолчанию не пишем.
+	code, _, errOut = runKB("eval", "-embedder", "none", "-questions", "../../eval/questions.json")
+	if code != exitFailed || !strings.Contains(errOut, "-out") || !strings.Contains(errOut, "BM25") {
+		t.Fatalf("eval без эмбеддера в путь по умолчанию: %d\n%s", code, errOut)
+	}
+	if _, err := os.Stat("examples"); err == nil {
+		t.Fatal("отчёт по BM25 записан в путь по умолчанию")
+	}
+	// С явным -out — можно.
+	if code, _, errOut := runKB("eval", "-embedder", "none", "-questions", "../../eval/questions.json", "-out", md2); code != exitOK {
+		t.Fatalf("eval без эмбеддера с -out: %d\n%s", code, errOut)
 	}
 }
 
@@ -103,11 +126,22 @@ func TestIndexHTTPAndErrors(t *testing.T) {
 	if code != exitOK || !strings.Contains(out, "intfloat/multilingual-e5-base") || !strings.Contains(errOut, "эмбеддер: ") {
 		t.Fatalf("index auto: %d\n%s\n%s", code, out, errOut)
 	}
+	// Адрес флагом -embed-url важнее EMBED_BASE_URL.
+	t.Setenv("EMBED_BASE_URL", "http://127.0.0.1:1")
+	code, out, errOut = runKB("index", "-db", dbPath, "-corpus", repoCorpus, "-strategy", "structure", "-embed-url", fake.URL)
+	if code != exitOK || !strings.Contains(out, "intfloat/multilingual-e5-base") || !strings.Contains(errOut, fake.URL) {
+		t.Fatalf("index -embed-url: %d\n%s\n%s", code, out, errOut)
+	}
 	// Сайдкар упал: auto собирает без векторов и предупреждает.
 	t.Setenv("EMBED_BASE_URL", "http://127.0.0.1:1")
 	code, out, errOut = runKB("index", "-db", dbPath, "-corpus", repoCorpus, "-strategy", "fixed", "-size", "500")
 	if code != exitOK || !strings.Contains(out, "без векторов") || !strings.Contains(errOut, "недоступен") ||
 		!strings.Contains(out, "(size 500, overlap 75)") {
+		t.Fatalf("index без сайдкара: %d\n%s\n%s", code, out, errOut)
+	}
+	// -overlap 0 — без перекрытия.
+	code, out, errOut = runKB("index", "-db", dbPath, "-corpus", repoCorpus, "-strategy", "fixed", "-size", "500", "-overlap", "0", "-embedder", "none")
+	if code != exitOK || !strings.Contains(out, "(size 500, overlap 0)") {
 		t.Fatalf("index без сайдкара: %d\n%s\n%s", code, out, errOut)
 	}
 	// http без проверки — ошибка кодирования честно роняет сборку.

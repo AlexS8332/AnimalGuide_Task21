@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -120,6 +122,36 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, fmt.Errorf("FTS индексов: %w", err)
 	}
 	return s, nil
+}
+
+// OpenCache открывает чужую kb.db только для чтения — как общий кэш
+// эмбеддингов (embed.Layered.Shared): без миграций и без записи, файл
+// остаётся как был. Пользоваться можно только GetVec.
+func OpenCache(ctx context.Context, path string) (*Store, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, err
+	}
+	d, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?mode=ro&_pragma=busy_timeout(5000)")
+	if err != nil {
+		return nil, err
+	}
+	var n int
+	if err := d.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'kb_embed_cache'`).Scan(&n); err != nil {
+		d.Close()
+		return nil, fmt.Errorf("кэш %s: %w", path, err)
+	}
+	if n == 0 {
+		d.Close()
+		return nil, fmt.Errorf("в %s нет kb_embed_cache — это не база знаний", path)
+	}
+	return &Store{db: d}, nil
+}
+
+// CacheSize — сколько векторов модели в кэше эмбеддингов.
+func (s *Store) CacheSize(ctx context.Context, model string) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM kb_embed_cache WHERE model = ?`, model).Scan(&n)
+	return n, err
 }
 
 // ftsTable — имя таблицы FTS индекса. id индекса — имя стратегии; в имя

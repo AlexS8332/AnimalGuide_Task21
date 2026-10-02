@@ -200,7 +200,10 @@ type embedRequest struct {
 }
 
 type embedResponse struct {
-	Data []struct {
+	// Model — какая модель кодировала (OpenAI, сайдкар и Ollama его
+	// пишут); пусто — сервер не сказал.
+	Model string `json:"model"`
+	Data  []struct {
 		Index     int       `json:"index"`
 		Embedding []float32 `json:"embedding"`
 	} `json:"data"`
@@ -254,6 +257,11 @@ func (h *HTTP) batch(ctx context.Context, in []string) ([][]float32, error) {
 	if err := json.Unmarshal(raw, &er); err != nil {
 		return nil, fmt.Errorf("эмбеддинги: разбор ответа: %w", err)
 	}
+	if er.Model != "" && !sameModel(er.Model, h.Name) {
+		// Сайдкар кодирует своей моделью, что бы ни просил клиент: чужие
+		// векторы под именем нашей модели испортили бы индекс молча.
+		return nil, fmt.Errorf("эмбеддинги: ответила модель %s, а клиент ждёт %s", er.Model, h.Name)
+	}
 	if len(er.Data) != len(in) {
 		return nil, fmt.Errorf("эмбеддинги: на %d текстов пришло %d векторов", len(in), len(er.Data))
 	}
@@ -281,6 +289,13 @@ func (h *HTTP) batch(ctx context.Context, in []string) ([][]float32, error) {
 	}
 	h.dims.CompareAndSwap(0, int64(dims))
 	return out, nil
+}
+
+// sameModel — имя модели из ответа то же, что у клиента. Тег Ollama
+// «:latest» не различает модели: «bge-m3» и «bge-m3:latest» — одна.
+func sameModel(got, want string) bool {
+	trim := func(s string) string { return strings.TrimSuffix(strings.TrimSpace(s), ":latest") }
+	return trim(got) == trim(want)
 }
 
 // errorText — короткое описание ошибки из тела ответа: OpenAI пишет
@@ -494,6 +509,28 @@ func (h Hash) vector(text string) []float32 {
 type Cache interface {
 	GetVec(ctx context.Context, model, sha string) ([]float32, bool, error)
 	PutVec(ctx context.Context, model, sha string, v []float32) error
+}
+
+// Layered — кэш в два слоя: Own читается первым и принимает запись, Shared
+// только читается. Так прогон во временной базе берёт векторы из общего
+// кэша (kb.db репозитория) и не портит его: всё новое пишется в Own.
+// Shared == nil — один слой.
+type Layered struct {
+	Own, Shared Cache
+}
+
+func (l Layered) GetVec(ctx context.Context, model, sha string) ([]float32, bool, error) {
+	if v, ok, err := l.Own.GetVec(ctx, model, sha); err != nil || ok {
+		return v, ok, err
+	}
+	if l.Shared == nil {
+		return nil, false, nil
+	}
+	return l.Shared.GetVec(ctx, model, sha)
+}
+
+func (l Layered) PutVec(ctx context.Context, model, sha string, v []float32) error {
+	return l.Own.PutVec(ctx, model, sha, v)
 }
 
 // Cached — эмбеддер с кэшем: повторная индексация и повторные вопросы не

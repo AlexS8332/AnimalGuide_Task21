@@ -147,6 +147,7 @@ func TestHTTPBatchesOrderNormalize(t *testing.T) {
 		t.Fatalf("Dims = %d", h.Dims())
 	}
 	// Без ключа заголовка нет; по умолчанию батч 32.
+	f.SetModel("bge-m3")
 	h2 := &embed.HTTP{BaseURL: f.URL + "/v1/", Name: "bge-m3"}
 	if _, err := h2.Embed(ctx, embed.Query, make([]string, 40)); err != nil {
 		t.Fatal(err)
@@ -195,6 +196,24 @@ func TestHTTPErrors(t *testing.T) {
 	if _, err := h.Embed(ctx, embed.Query, []string{"а"}); err == nil {
 		t.Fatal("смена размерности не замечена")
 	}
+
+	// Ответила не та модель — ошибка, а не чужие векторы под нашим именем;
+	// «:latest» у Ollama — та же модель; без поля model — верим.
+	f.SetHash(embed.Hash{D: 32})
+	h3 := &embed.HTTP{BaseURL: f.URL, Name: embed.DefaultModel}
+	f.SetModel("BAAI/bge-m3")
+	if _, err := h3.Embed(ctx, embed.Query, []string{"а"}); err == nil || !strings.Contains(err.Error(), "BAAI/bge-m3") {
+		t.Fatalf("чужая модель: %v", err)
+	}
+	f.SetModel(embed.DefaultModel + ":latest")
+	if _, err := h3.Embed(ctx, embed.Query, []string{"а"}); err != nil {
+		t.Fatalf(":latest: %v", err)
+	}
+	f.SetModel("")
+	if _, err := h3.Embed(ctx, embed.Query, []string{"а"}); err != nil {
+		t.Fatalf("без model: %v", err)
+	}
+	f.SetModel(embed.DefaultModel)
 
 	// Никто не слушает — ErrUnavailable.
 	dead := &embed.HTTP{BaseURL: deadURL(t), Name: embed.DefaultModel}
@@ -282,6 +301,30 @@ func (m memCache) GetVec(_ context.Context, model, sha string) ([]float32, bool,
 func (m memCache) PutVec(_ context.Context, model, sha string, v []float32) error {
 	m[model+"|"+sha] = v
 	return nil
+}
+
+// TestLayered — общий слой только читается: попадание из него, запись — в
+// свой слой.
+func TestLayered(t *testing.T) {
+	own, shared := memCache{}, memCache{}
+	shared["m|a"] = []float32{1}
+	l := embed.Layered{Own: own, Shared: shared}
+	if v, ok, err := l.GetVec(ctx, "m", "a"); err != nil || !ok || v[0] != 1 {
+		t.Fatalf("из общего: %v %v %v", v, ok, err)
+	}
+	if err := l.PutVec(ctx, "m", "b", []float32{2}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := shared["m|b"]; ok || own["m|b"] == nil {
+		t.Fatalf("запись ушла не туда: own %v, shared %v", own, shared)
+	}
+	own["m|a"] = []float32{3}
+	if v, _, _ := l.GetVec(ctx, "m", "a"); v[0] != 3 {
+		t.Fatal("свой слой не первый")
+	}
+	if _, ok, _ := (embed.Layered{Own: own}).GetVec(ctx, "m", "zz"); ok {
+		t.Fatal("промах без общего слоя")
+	}
 }
 
 func TestCached(t *testing.T) {
