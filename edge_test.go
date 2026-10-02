@@ -40,6 +40,7 @@ import (
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/history"
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/hub"
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/hubapi"
+	"github.com/AlexS8332/AnimalGuide_Task21/internal/kbapi"
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/llm"
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/llm/llmtest"
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/memory"
@@ -126,6 +127,8 @@ type edgeApp struct {
 	pipe *edgePipe
 	// hub — REST окна «MCP-серверы» за /api/hub/ (v20).
 	hub *edgeHub
+	// kb — REST окна «База знаний» за /api/kb/ (v21).
+	kb *edgeKB
 }
 
 func newEdgeApp(t *testing.T) *edgeApp {
@@ -164,7 +167,7 @@ func newEdgeApp(t *testing.T) *edgeApp {
 	for k, v := range persona.Meta() {
 		meta[k] = v
 	}
-	a := &edgeApp{m: m, facts: newEdgeFacts(), pipe: newEdgePipe(), hub: newEdgeHub()}
+	a := &edgeApp{m: m, facts: newEdgeFacts(), pipe: newEdgePipe(), hub: newEdgeHub(), kb: newEdgeKB(t)}
 	a.handler = server.New(m, static, meta, append(people.Extension(), compile.Extension(m)...)...)
 	a.seed(t)
 	return a
@@ -242,6 +245,7 @@ func (a *edgeApp) page(t *testing.T, shots bool) *httptest.Server {
 	mux.Handle("/api/facts/", a.facts)
 	mux.Handle("/api/pipeline/", a.pipe)
 	mux.Handle(hubapi.Prefix, a.hub)
+	mux.Handle(kbapi.Prefix, a.kb)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -291,6 +295,8 @@ func TestEdge(t *testing.T) {
 		{"facts-down", a.main},
 		{"pipeline", a.main},
 		{"hub", a.main},
+		{"kb", a.main},
+		{"kb-none", a.main},
 	}
 	total := 0
 	for _, sc := range scenarios {
@@ -347,6 +353,12 @@ func TestEdge(t *testing.T) {
 			{"pipeline.png", "shot-pipeline", a.main},
 			{"hub-servers.png", "shot-hub-servers", a.main},
 			{"hub-flow.png", "shot-hub", a.main},
+			{"kb-docs.png", "shot-kb-docs", a.main},
+			{"kb-chunks-structure.png", "shot-kb-structure", a.main},
+			{"kb-chunks-fixed.png", "shot-kb-fixed", a.main},
+			{"kb-search.png", "shot-kb-search", a.main},
+			{"kb-report.png", "shot-kb-report", a.main},
+			{"kb-none.png", "shot-kb-none", a.main},
 		} {
 			edgeRun(t, edge, fmt.Sprintf("%s/?scenario=%s#c=%s", shot.URL, s.scenario, s.conv), "1400,900",
 				"--screenshot="+filepath.Join(abs, s.file))

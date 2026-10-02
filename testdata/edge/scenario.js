@@ -947,6 +947,247 @@
     await sleep(300);
   };
 
+  // ===== Окно «База знаний» (v21) =====
+
+  /* REST (edgeKB в edge_test): настоящий kbapi над временной kb.db из
+     настоящего корпуса — обе стратегии, векторы embed.Hash (hash-256),
+     сохранённый отчёт сравнения — и документ xss-test с разметкой в
+     заголовке, тексте и разделе. Сценарии kb-none — база не собрана (503),
+     эмбеддер не отвечает. */
+  const kbBlocks = () => qa('#kb-text .kb-chunk');
+  async function openKB(what) {
+    await until('кнопка на пульте', () => q('#kb-button .kb-dot.ok, #kb-button .kb-dot.bad'), 8000);
+    click('#kb-button');
+    await until('окно базы знаний', () => windowOpen() && q('#kb-root') && $('window-title').textContent === 'База знаний' && q(what || '#kb-docs'), 8000);
+  }
+  async function kbPickStrategy(s) {
+    const sel = $('kb-strategy');
+    sel.value = s;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await until('стратегия ' + s, () => q(`#kb-text[data-index="${s}"]`) && kbBlocks().length);
+  }
+  async function kbAsk(query, mode, k) {
+    click('[data-kb-tab="search"]');
+    await until('вкладка поиска', () => q('#kb-search-form'));
+    $('kb-q').value = query;
+    $('kb-q').dispatchEvent(new Event('input', { bubbles: true }));
+    if (mode) { $('kb-mode').value = mode; $('kb-mode').dispatchEvent(new Event('change', { bubbles: true })); }
+    if (k) { $('kb-k').value = String(k); $('kb-k').dispatchEvent(new Event('change', { bubbles: true })); }
+    click('#kb-go');
+    await until('выдача', () => q('#kb-results .kb-result') && q('#kb-results').dataset.query === query && !$('kb-go').disabled, 8000);
+  }
+
+  scenarios.kb = async () => {
+    spyFetch();
+    await booted();
+    window.__xss = undefined;
+
+    await check('база знаний: окно в списке окон, кнопка на пульте рядом с MCP-серверами', async () => {
+      click('#windows-button');
+      await until('список окон', () => windowOpen() && q('#window-body .wlist'));
+      assert(text('#window-body .wlist [data-arg="kb"]') === 'База знаний', 'нет окна kb в списке');
+      actions.closeWindow();
+      const b = await until('кнопка', () => q('#kb-button .kb-dot.ok') && $('kb-button'), 8000);
+      assert(text('#kb-button') === 'База знаний', 'надпись: ' + text('#kb-button'));
+      await until('кнопка MCP', () => q('#hub-button'), 8000);
+      await until('рядом с MCP-серверами', () => $('hub-button').nextElementSibling === b);
+      assert(b.title.includes('hash-256'), 'подсказка: ' + b.title);
+    });
+
+    await check('база знаний: четыре вкладки, корпус', async () => {
+      await openKB();
+      const tabs = qa('[data-kb-tab]').map(x => x.dataset.kbTab);
+      assert(tabs.join(',') === 'docs,chunks,search,report', 'вкладки: ' + tabs);
+      assert(q('[data-kb-tab="docs"]').classList.contains('active'), 'открыта не «Корпус»');
+      assert(text('[data-kb-tab="chunks"]') === 'Чанки' && text('[data-kb-tab="search"]') === 'Поиск' && text('[data-kb-tab="report"]') === 'Сравнение', 'надписи вкладок');
+      const n = Number(text('#kb-n-docs'));
+      assert(n >= 31 && qa('.kb-doc').length === n, `документов ${n}, строк ${qa('.kb-doc').length}`);
+      assert(Number(text('#kb-n-pages').replace(',', '.')) >= 30, 'страниц: ' + text('#kb-n-pages'));
+      assert(/^[0-9a-f]{12}$/.test(text('#kb-sha')) && /^[0-9a-f]{64}$/.test($('kb-sha').title), 'corpus_sha: ' + text('#kb-sha'));
+      assert(text('#kb-licenses').includes('CC BY-SA'), 'лицензии: ' + text('#kb-licenses'));
+      assert(Number(text('#kb-n-chars').replace(/\D/g, '')) > 100000, 'символов: ' + text('#kb-n-chars'));
+      assert(q('#kb-embedder.ok') && text('#kb-embedder').includes('hash-256') && text('#kb-embedder').includes('test'), 'эмбеддер: ' + text('#kb-embedder'));
+      assert(qa('#kb-indexes .kb-index').map(x => x.dataset.index).join(',') === 'structure,fixed', 'индексы: ' + text('#kb-indexes'));
+    });
+
+    await check('база знаний: строка документа: заголовок, источник, символы, страницы, ревизия', () => {
+      const row = q('.kb-doc[data-doc="manul"]');
+      assert(row && row.textContent.includes('Манул') && row.textContent.includes('wikipedia-ru'), 'строка: ' + (row && row.textContent));
+      const a = row.querySelector('a.kb-ext');
+      assert(a && /^https:\/\/ru\.wikipedia\.org\/w\/index\.php\?oldid=\d+$/.test(a.href) && a.target === '_blank', 'ссылка: ' + (a && a.href));
+      assert(a.textContent.includes(a.href.split('=')[1]), 'revid в ссылке');
+      assert(!q('.kb-doc[data-doc="xss-test"] a'), 'ссылка javascript: стала ссылкой');
+    });
+
+    let nStructure = 0;
+    await check('база знаний: клик по документу открывает его чанки', async () => {
+      click(q('.kb-doc[data-doc="manul"] td:nth-child(3)'));
+      await until('чанки манула', () => q('#kb-text[data-doc="manul"][data-index="structure"]') && kbBlocks().length, 8000);
+      assert(q('[data-kb-tab="chunks"]').classList.contains('active'), 'вкладка не «Чанки»');
+      assert($('kb-doc').value === 'manul' && $('kb-strategy').value === 'structure', 'выбор: ' + $('kb-doc').value + ' / ' + $('kb-strategy').value);
+      const bl = kbBlocks();
+      nStructure = bl.length;
+      assert(nStructure > 5, 'блоков ' + nStructure);
+      assert(bl.every((b, i) => b.dataset.id === 'manul/structure/' + String(i).padStart(3, '0') || b.dataset.id.startsWith('manul/structure/')), 'id блоков');
+      assert(bl[0].classList.contains('even') && bl[1].classList.contains('odd') && bl[2].classList.contains('even'), 'фон не чередуется');
+      assert(getComputedStyle(bl[0]).backgroundColor !== getComputedStyle(bl[1]).backgroundColor, 'фон соседних блоков одинаков');
+      const head = bl[1].querySelector('.kb-chunk-head').textContent;
+      assert(head.includes(bl[1].dataset.id) && /\d+ ток\./.test(head), 'подпись: ' + head);
+      assert(text('#kb-summary .kb-sum-s[data-index="structure"] .kb-sum-n').startsWith(String(nStructure)), 'сводка: ' + text('#kb-summary'));
+      assert(text('#kb-text').includes('палласов кот') || text('#kb-text').includes('Манул'), 'нет текста статьи');
+      assert(q('#kb-text .kb-hd'), 'заголовки разделов не видны');
+    });
+
+    await check('база знаний: переключатель стратегии меняет число блоков', async () => {
+      await kbPickStrategy('fixed');
+      const n = kbBlocks().length;
+      assert(n > 0 && n !== nStructure, `fixed ${n}, structure ${nStructure}`);
+      assert(kbBlocks().every(b => b.dataset.id.startsWith('manul/fixed/')), 'id блоков fixed');
+      assert(q('#kb-text .kb-overlap'), 'перекрытие fixed не видно');
+      assert(q('#kb-text .kb-chunk.mixed .kb-mixed'), 'нет пометки «на стыке разделов»');
+      assert(text('#kb-summary .kb-sum-s[data-index="fixed"] .kb-sum-n').startsWith(String(n)), 'сводка fixed');
+      assert(text('#kb-summary .kb-sum-s[data-index="structure"] .kb-sum-n').startsWith(String(nStructure)), 'сводка structure пропала');
+      click('[data-kb-strategy="structure"]');
+      await until('обратно structure', () => q('#kb-text[data-index="structure"]') && kbBlocks().length === nStructure);
+      assert($('kb-strategy').value === 'structure', 'выбор не синхронен');
+    });
+
+    let hit = null;
+    await check('база знаний: поиск по двум индексам рядом', async () => {
+      await kbAsk('чем питается харза', 'dense', 5);
+      const cols = qa('.kb-result');
+      assert(cols.map(c => c.dataset.index).join(',') === 'structure,fixed', 'колонки: ' + cols.map(c => c.dataset.index));
+      assert(Math.abs(cols[0].getBoundingClientRect().top - cols[1].getBoundingClientRect().top) < 2 &&
+        cols[1].getBoundingClientRect().left > cols[0].getBoundingClientRect().right - 1, 'колонки не рядом');
+      for (const c of cols) {
+        const hits = [...c.querySelectorAll('.kb-hit')];
+        assert(hits.length === 5, c.dataset.index + ': попаданий ' + hits.length);
+        assert(c.querySelector('.kb-mode.dense') && c.querySelector('.kb-mode').textContent.includes('hash-256'), 'режим: ' + c.querySelector('.kb-result-head').textContent);
+        hits.forEach((h, i) => {
+          assert(h.querySelector('.kb-rank').textContent === String(i + 1), 'ранг');
+          assert(/^-?\d\.\d{3}$/.test(h.querySelector('.kb-score').textContent), 'балл: ' + h.querySelector('.kb-score').textContent);
+          assert(h.querySelector('.kb-hit-where').textContent.includes('›'), 'документ › раздел');
+          assert(h.querySelector('.kb-hit-text').textContent.length <= 300, 'текст длиннее 300');
+        });
+      }
+      const call = factsCalls.filter(x => x.url.includes('/api/kb/search')).pop();
+      assert(call && call.url.includes('k=5') && call.url.includes('mode=dense') && !call.url.includes('index='), 'запрос: ' + (call && call.url));
+    });
+
+    await check('база знаний: BM25 находит харзу', async () => {
+      await kbAsk('чем питается харза', 'bm25', 3);
+      const cols = qa('.kb-result');
+      assert(cols.length === 2 && cols.every(c => c.querySelector('.kb-mode.bm25') && c.querySelectorAll('.kb-hit').length === 3), 'выдача bm25');
+      assert(cols.every(c => c.querySelector('.kb-hit[data-doc="yellow-throated-marten"]')), 'харзы нет в выдаче');
+      hit = q('.kb-result[data-index="fixed"] .kb-hit[data-doc="yellow-throated-marten"]');
+    });
+
+    await check('база знаний: клик по попаданию ведёт к чанку', async () => {
+      const id = hit.dataset.chunk;
+      click(hit.querySelector('.kb-hit-text'));
+      await until('чанк', () => q(`#kb-text[data-doc="yellow-throated-marten"][data-index="fixed"] .kb-chunk.focus[data-id="${id}"]`), 8000);
+      assert(q('[data-kb-tab="chunks"]').classList.contains('active') && $('kb-doc').value === 'yellow-throated-marten' && $('kb-strategy').value === 'fixed', 'вкладка и выбор');
+      const r = q('.kb-chunk.focus').getBoundingClientRect(), w = $('window-body').getBoundingClientRect();
+      assert(r.bottom > w.top && r.top < w.bottom, 'чанк не в виду');
+    });
+
+    await check('база знаний: форма поиска переживает смену вкладок', async () => {
+      click('[data-kb-tab="search"]');
+      await until('поиск', () => q('#kb-search-form'));
+      assert($('kb-q').value === 'чем питается харза' && $('kb-mode').value === 'bm25' && $('kb-k').value === '3', 'форма сброшена');
+      assert(qa('.kb-result').length === 2, 'выдача пропала');
+    });
+
+    await check('база знаний: сравнение стратегий', async () => {
+      click('[data-kb-tab="report"]');
+      await until('отчёт', () => q('#kb-report-meta'), 8000);
+      assert(text('#kb-report-date').match(/\d\d\.\d\d\.\d{4}/), 'дата: ' + text('#kb-report-date'));
+      assert(text('#kb-report-meta').includes('hash-256'), 'эмбеддер: ' + text('#kb-report-meta'));
+      assert(qa('#kb-stats-table .kb-stat-row').map(r => r.dataset.index).join(',') === 'structure,fixed', 'структурные метрики');
+      const rows = qa('#kb-retrieval-table .kb-ret-row');
+      assert(rows.length === 8, 'строк поиска ' + rows.length);
+      assert(rows.some(r => r.dataset.mode === 'bm25') && rows.some(r => r.dataset.split === 'test'), 'режимы и наборы');
+      assert(text('#kb-retrieval-table').includes('recall@1') && text('#kb-retrieval-table').includes('MRR') && text('#kb-retrieval-table').includes('recall при'), 'колонки');
+      assert(/\d\.\d\d/.test(rows[0].textContent), 'нет чисел');
+      assert(qa('#kb-conclusion li').length >= 3 && text('#kb-conclusion').includes('structure'), 'вывод: ' + text('#kb-conclusion'));
+    });
+
+    await check('база знаний: разметка из корпуса выводится буквами', async () => {
+      click('[data-kb-tab="docs"]');
+      await until('корпус', () => q('.kb-doc[data-doc="xss-test"]'));
+      const t = q('.kb-doc[data-doc="xss-test"] .kb-doc-title');
+      assert(t.textContent.includes('<b>Ксенофоб</b>') && t.textContent.includes('<img src=x'), 'заголовок: ' + t.textContent);
+      click(q('.kb-doc[data-doc="xss-test"] td:nth-child(3)'));
+      await until('чанки xss', () => q('#kb-text[data-doc="xss-test"]') && kbBlocks().length);
+      assert(text('#kb-text').includes('<script>window.__xss=42</script>') && text('#kb-text').includes('<i>Питание</i>'), 'текст: ' + text('#kb-text'));
+      assert(text('#kb-text').includes('&amp;'), 'амперсанд раскрылся');
+      await kbAsk('ксенофоб разметкой', 'bm25', 3);
+      const h = await until('попадание', () => q('.kb-hit[data-doc="xss-test"]'));
+      assert(h.textContent.includes('<script>') || h.textContent.includes('<img'), 'выдача: ' + h.textContent);
+      assert(!q('#kb-root img') && !q('#kb-root script') && !q('#kb-root .kb-doc-title b') && !q('#kb-root .kb-hit-where i'), 'элемент из данных в окне');
+      await sleep(100);
+      assert(window.__xss === undefined, 'исполнился код: __xss=' + window.__xss);
+    });
+  };
+
+  scenarios['kb-none'] = async () => {
+    spyFetch();
+    await booted();
+
+    await check('база знаний: без базы красная точка на пульте', async () => {
+      const b = await until('кнопка', () => q('#kb-button .kb-dot.bad') && $('kb-button'), 8000);
+      assert(b.title.includes('базы знаний нет'), 'подсказка: ' + b.title);
+    });
+
+    await check('база знаний: без базы понятная подсказка с командами', async () => {
+      await openKB('#kb-off');
+      assert(text('#kb-off').includes('Базы знаний нет'), 'заголовок: ' + text('#kb-off'));
+      assert(text('#kb-off .kb-why').includes('базы знаний нет:'), 'причина: ' + text('#kb-off .kb-why'));
+      assert(text('#kb-off').includes('go run ./cmd/kb index -strategy all') && text('#kb-off').includes('go run ./cmd/kb eval') && text('#kb-off').includes('uv run embedder/server.py'), 'команды: ' + text('#kb-off'));
+      assert(text('#kb-off .kb-off-emb').includes('не отвечает'), 'эмбеддер: ' + text('#kb-off .kb-off-emb'));
+      assert(!q('.kb-doc') && !q('#kb-docs'), 'таблица без базы');
+      assert(factsCalls.filter(x => x.url.includes('/api/kb/docs')).length === 0, 'окно спросило docs без базы');
+    });
+
+    await check('база знаний: без базы вкладки ведут к той же подсказке', async () => {
+      for (const tab of ['search', 'chunks', 'report']) {
+        click(`[data-kb-tab="${tab}"]`);
+        await until('вкладка ' + tab, () => q(`[data-kb-tab="${tab}"]`).classList.contains('active') && q('#kb-off'));
+      }
+      assert(!q('#kb-search-form') && !q('#kb-report-meta'), 'вкладки без базы');
+    });
+  };
+
+  scenarios['shot-kb-docs'] = async () => { await booted(); await openKB(); await sleep(200); };
+  scenarios['shot-kb-structure'] = async () => {
+    await booted();
+    await openKB();
+    click(q('.kb-doc[data-doc="yellow-throated-marten"] td:nth-child(3)'));
+    await until('чанки', () => q('#kb-text[data-index="structure"]') && kbBlocks().length, 8000);
+    $('window-body').scrollTop = 0;
+    await sleep(200);
+  };
+  scenarios['shot-kb-fixed'] = async () => {
+    await scenarios['shot-kb-structure']();
+    await kbPickStrategy('fixed');
+    $('window-body').scrollTop = 0;
+    await sleep(200);
+  };
+  scenarios['shot-kb-search'] = async () => {
+    await booted();
+    await openKB();
+    await kbAsk('чем питается харза', 'dense', 5);
+    await sleep(200);
+  };
+  scenarios['shot-kb-report'] = async () => {
+    await booted();
+    await openKB();
+    click('[data-kb-tab="report"]');
+    await until('отчёт', () => q('#kb-report-meta'), 8000);
+    await sleep(200);
+  };
+  scenarios['shot-kb-none'] = async () => { await booted(); await openKB('#kb-off'); await sleep(200); };
+
   async function run() {
     const name = new URLSearchParams(location.search).get('scenario') || 'main';
     const fn = scenarios[name];
