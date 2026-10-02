@@ -324,7 +324,7 @@ func TestFTSQuery(t *testing.T) {
 		`"кот" AND NEAR(лиса)`:       `"кот" OR "near" OR "лиса"`,
 		"а и в":                      "",
 		"Сколько весит снежный барс": `"веси" OR "снежн" OR "барс"`,
-		"ёж":                         "",
+		"ёж": "",
 	}
 	for q, want := range cases {
 		if got := ftsQuery(q); got != want {
