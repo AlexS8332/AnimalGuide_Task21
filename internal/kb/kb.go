@@ -12,9 +12,9 @@
 package kb
 
 import (
-	"context"
 	"database/sql"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/corpus"
@@ -26,6 +26,13 @@ var ErrNotImplemented = errors.New("не реализовано")
 
 // ErrNoIndex — индекса с таким id в базе нет.
 var ErrNoIndex = errors.New("индекса нет")
+
+// ErrNoDoc и ErrNoChunk — документа или чанка с таким id в базе нет (окно
+// отвечает на них 404, а не 500).
+var (
+	ErrNoDoc   = errors.New("документа нет")
+	ErrNoChunk = errors.New("чанка нет")
+)
 
 // Strategy — стратегия чанкинга; она же id индекса в базе (один индекс на
 // стратегию: пересборка заменяет прежний).
@@ -76,8 +83,10 @@ type Chunk struct {
 	End   int `json:"end"`
 	// Text — сам фрагмент (то, что видит модель и цитирует ответ).
 	Text string `json:"text"`
-	// Mixed — чанк захватил текст двух и более разделов (у fixed бывает,
-	// у structure — нет по построению).
+	// Mixed — чанк захватил текст двух и более разделов: внутри него есть
+	// строка заголовка «## …» другого раздела. У fixed бывает часто, у
+	// structure — только при склейке короткого раздела с соседом того же
+	// родителя (оба раздела целиком в чанке, текст не дублируется).
 	Mixed  bool   `json:"mixed,omitempty"`
 	Tokens int    `json:"tokens"`
 	SHA    string `json:"text_sha"`
@@ -87,8 +96,7 @@ type Chunk struct {
 
 // EmbedText — что уходит эмбеддеру: «Заголовок › Путь раздела» и текст.
 // Заголовок в тексте эмбеддинга помогает найти «питание манула», когда в
-// самом абзаце слово «манул» не встречается.
-func (c Chunk) EmbedText() string { return "" }
+// самом абзаце слово «манул» не встречается. Реализация — в chunk.go.
 
 // Chunker — стратегия чанкинга.
 type Chunker interface {
@@ -97,9 +105,8 @@ type Chunker interface {
 	Split(d corpus.Doc) []Chunk
 }
 
-// NewFixed и NewStructure — стратегии с параметрами (0 → умолчания).
-func NewFixed(size, overlap int) Chunker { return nil }
-func NewStructure(max, min int) Chunker  { return nil }
+// NewFixed и NewStructure — стратегии с параметрами (0 → умолчания);
+// реализация — в chunk.go.
 
 // IndexInfo — индекс в базе.
 type IndexInfo struct {
@@ -138,53 +145,11 @@ type Store struct {
 	db *sql.DB
 }
 
-// Open открывает (создаёт) kb.db и применяет миграции компонента "kb".
-func Open(ctx context.Context, path string) (*Store, error) { return nil, ErrNotImplemented }
-func (s *Store) Close() error                               { return nil }
-
-// PutCorpus заменяет документы базы снимком корпуса (одной транзакцией).
-func (s *Store) PutCorpus(ctx context.Context, docs []corpus.Doc, m corpus.Manifest) error {
-	return ErrNotImplemented
-}
-
-// Manifest — манифест корпуса, из которого собрана база.
-func (s *Store) Manifest(ctx context.Context) (corpus.Manifest, error) {
-	return corpus.Manifest{}, ErrNotImplemented
-}
-func (s *Store) Docs(ctx context.Context) ([]DocInfo, error) { return nil, ErrNotImplemented }
-func (s *Store) Doc(ctx context.Context, id string) (corpus.Doc, error) {
-	return corpus.Doc{}, ErrNotImplemented
-}
-
 // Progress — ход индексации: сколько чанков закодировано из скольких.
 type Progress func(done, total int)
 
-// Build режет документы базы стратегией, кодирует чанки (через кэш
-// kb_embed_cache) и заменяет индекс этой стратегии одной транзакцией.
-// emb == nil — индекс без векторов (только BM25).
-func (s *Store) Build(ctx context.Context, ch Chunker, emb embed.Embedder, p Progress) (IndexInfo, error) {
-	return IndexInfo{}, ErrNotImplemented
-}
-func (s *Store) Indexes(ctx context.Context) ([]IndexInfo, error) { return nil, ErrNotImplemented }
-func (s *Store) Index(ctx context.Context, id string) (IndexInfo, error) {
-	return IndexInfo{}, ErrNotImplemented
-}
-
-// Chunks — чанки индекса (без векторов); docID пусто — все.
-func (s *Store) Chunks(ctx context.Context, indexID, docID string) ([]Chunk, error) {
-	return nil, ErrNotImplemented
-}
-func (s *Store) Chunk(ctx context.Context, chunkID string) (Chunk, error) {
-	return Chunk{}, ErrNotImplemented
-}
-
-// GetVec, PutVec — embed.Cache.
-func (s *Store) GetVec(ctx context.Context, model, sha string) ([]float32, bool, error) {
-	return nil, false, ErrNotImplemented
-}
-func (s *Store) PutVec(ctx context.Context, model, sha string, v []float32) error {
-	return ErrNotImplemented
-}
+// Методы Store (Open, PutCorpus, Manifest, Docs, Doc, Build, Indexes, Index,
+// Chunks, Chunk, GetVec, PutVec) — в store.go.
 
 // Mode — как найдено.
 type Mode string
@@ -226,8 +191,8 @@ type Searcher struct {
 	Store *Store
 	// Embedder — для векторов вопроса; nil — только BM25.
 	Embedder embed.Embedder
-}
 
-func (s *Searcher) Search(ctx context.Context, query string, o SearchOptions) ([]Hit, SearchInfo, error) {
-	return nil, SearchInfo{}, ErrNotImplemented
+	// mu охраняет dense: Searcher делят обработчики HTTP из разных горутин.
+	mu    sync.Mutex
+	dense map[string]*denseIndex
 }
