@@ -79,7 +79,3 @@ type SearchResult struct {
 func (a *API) Extension() []server.Extension {
 	return []server.Extension{{Prefix: Prefix, Handler: http.HandlerFunc(a.handle)}}
 }
-
-func (a *API) handle(w http.ResponseWriter, r *http.Request) {
-	server.WriteJSON(w, http.StatusNotImplemented, map[string]string{"error": "не реализовано"})
-}
