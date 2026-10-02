@@ -3,8 +3,6 @@ package kb
 import (
 	"context"
 	"time"
-
-	"github.com/AlexS8332/AnimalGuide_Task21/internal/corpus"
 )
 
 // Контрольные вопросы базы знаний — eval/questions.json. Разметка не зависит
@@ -60,13 +58,17 @@ type Question struct {
 	Split string `json:"split"` // test | dev | out
 	// Type — fact | number | conflict | section | compare | multihop |
 	// synonym | followup | aspect-missing | out-of-base.
-	Type        string      `json:"type"`
-	Q           string      `json:"q"`
-	Paraphrases []string    `json:"paraphrases,omitempty"`
-	Answerable  bool        `json:"answerable"`
-	Expect      *Expect     `json:"expect,omitempty"`
-	Sources     []SourceRef `json:"sources,omitempty"`
-	Evidence    []Evidence  `json:"evidence,omitempty"`
+	Type        string   `json:"type"`
+	Q           string   `json:"q"`
+	Paraphrases []string `json:"paraphrases,omitempty"`
+	// Context — предыдущие реплики пользователя (по порядку) для вопроса-
+	// продолжения (type followup): Q без них не понять — «а сколько он
+	// весит?». Поиск и rewrite получают Context вместе с Q.
+	Context    []string    `json:"context,omitempty"`
+	Answerable bool        `json:"answerable"`
+	Expect     *Expect     `json:"expect,omitempty"`
+	Sources    []SourceRef `json:"sources,omitempty"`
+	Evidence   []Evidence  `json:"evidence,omitempty"`
 	// Discriminative — модель без базы отвечает неверно (проба v22); nil —
 	// ещё не проверялось.
 	Discriminative *bool  `json:"discriminative,omitempty"`
@@ -80,16 +82,7 @@ type QuestionSet struct {
 	Questions []Question `json:"questions"`
 }
 
-// LoadQuestions читает файл вопросов.
-func LoadQuestions(path string) (QuestionSet, error) { return QuestionSet{}, ErrNotImplemented }
-
-// Verify — проверка разметки: id уникальны, split известен, у отвечаемых
-// есть evidence, каждый Evidence.Quote находится (corpus.Find) в своём
-// документе, у out нет evidence. Список всех нарушений, а не первое.
-func (qs QuestionSet) Verify(docs []corpus.Doc) []error { return nil }
-
-// Split — вопросы набора.
-func (qs QuestionSet) Split(name string) []Question { return nil }
+// LoadQuestions, Verify и Split — в questions.go.
 
 // CompareOptions — параметры сравнения стратегий.
 type CompareOptions struct {
