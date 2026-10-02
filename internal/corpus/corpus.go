@@ -131,29 +131,25 @@ type Manifest struct {
 // Load читает снимок из каталога и сверяет его с манифестом: каждый файл
 // манифеста на месте и с тем же sha256, лишних документов нет, corpus_sha
 // пересчитывается. Документы — в порядке манифеста.
-func Load(dir string) ([]Doc, Manifest, error) {
-	return nil, Manifest{}, ErrNotImplemented
-}
+func Load(dir string) ([]Doc, Manifest, error) { return load(dir) }
 
 // Save записывает документы и манифест (атомарно, UTF-8, отступ в два
 // пробела) и возвращает новый манифест. LICENSE.md пишет WriteLicense.
-func Save(dir string, docs []Doc) (Manifest, error) {
-	return Manifest{}, ErrNotImplemented
-}
+func Save(dir string, docs []Doc) (Manifest, error) { return save(dir, docs) }
 
 // WriteLicense пишет corpus/LICENSE.md: лицензии и атрибуцию каждого
 // документа со ссылкой на его ревизию.
-func WriteLicense(dir string, docs []Doc) error { return ErrNotImplemented }
+func WriteLicense(dir string, docs []Doc) error { return writeLicense(dir, docs) }
 
 // Find ищет фрагмент в каноническом тексте после нормализации (регистр,
 // ё→е, кавычки «»“”„ → ", тире —– → -, пробельные последовательности → один
 // пробел). Возвращает смещение и длину в рунах ИСХОДНОГО текста; -1, если
 // фрагмента нет. Этой же нормализацией пользуются проверка разметки
 // вопросов и (в v24) сверка цитат.
-func Find(text, fragment string) (start, length int) { return -1, 0 }
+func Find(text, fragment string) (start, length int) { return find(text, fragment) }
 
 // Normalize — нормализация, которой пользуется Find.
-func Normalize(s string) string { return s }
+func Normalize(s string) string { return normalize(s) }
 
 // Fetcher — снятие снимка статей ru-Википедии: TextExtracts (explaintext,
 // exsectionformat=wiki) и ревизия (prop=revisions|info) одним запросом,
@@ -170,5 +166,5 @@ type Fetcher struct {
 // Wikipedia снимает одну статью. id — slug документа, species — сведения о
 // виде из списка (может быть nil).
 func (f Fetcher) Wikipedia(ctx context.Context, id, title string, species *Species) (Doc, error) {
-	return Doc{}, ErrNotImplemented
+	return f.wikipedia(ctx, id, title, species)
 }
