@@ -1,0 +1,196 @@
+package kb
+
+import (
+	"context"
+	"time"
+
+	"github.com/AlexS8332/AnimalGuide_Task21/internal/corpus"
+)
+
+// Контрольные вопросы базы знаний — eval/questions.json. Разметка не зависит
+// от стратегии чанкинга: релевантность задаёт дословный фрагмент-
+// доказательство (Evidence.Quote) из документа, а не chunk_id. Чанк
+// релевантен вопросу, если покрывает не меньше EvidenceCover фрагмента
+// (по смещениям в Doc.Text) хотя бы одного доказательства.
+
+// QuestionsSchema — версия формата файла вопросов.
+const QuestionsSchema = 1
+
+// EvidenceCover — какую долю фрагмента должен покрыть чанк.
+const EvidenceCover = 0.8
+
+// Наборы.
+const (
+	SplitTest = "test" // 10 контрольных вопросов заданий; формулировки не меняются
+	SplitDev  = "dev"  // подбор порогов и параметров
+	SplitOut  = "out"  // вне корпуса: ответа в базе нет (калибровка «не знаю»)
+)
+
+// Number — число, которое должно быть в ответе, с допуском.
+type Number struct {
+	V   float64 `json:"v"`
+	Tol float64 `json:"tol,omitempty"`
+}
+
+// Expect — что должно быть в ответе (проверяется с v22). Must — группы
+// синонимов: в ответе должна быть хотя бы одна форма из каждой группы.
+type Expect struct {
+	Must    [][]string `json:"must,omitempty"`
+	MustNot []string   `json:"must_not,omitempty"`
+	Numbers []Number   `json:"numbers,omitempty"`
+	// Note — ожидание словами, для людей.
+	Note string `json:"note,omitempty"`
+}
+
+// SourceRef — какой источник должен использоваться (для людей и отчёта).
+type SourceRef struct {
+	DocID   string `json:"doc_id"`
+	Section string `json:"section,omitempty"`
+}
+
+// Evidence — дословный фрагмент документа, на котором держится ответ.
+type Evidence struct {
+	DocID string `json:"doc_id"`
+	Quote string `json:"quote"`
+}
+
+// Question — контрольный вопрос.
+type Question struct {
+	ID    string `json:"id"`    // "T01", "D07", "O03"
+	Split string `json:"split"` // test | dev | out
+	// Type — fact | number | conflict | section | compare | multihop |
+	// synonym | followup | aspect-missing | out-of-base.
+	Type        string      `json:"type"`
+	Q           string      `json:"q"`
+	Paraphrases []string    `json:"paraphrases,omitempty"`
+	Answerable  bool        `json:"answerable"`
+	Expect      *Expect     `json:"expect,omitempty"`
+	Sources     []SourceRef `json:"sources,omitempty"`
+	Evidence    []Evidence  `json:"evidence,omitempty"`
+	// Discriminative — модель без базы отвечает неверно (проба v22); nil —
+	// ещё не проверялось.
+	Discriminative *bool  `json:"discriminative,omitempty"`
+	Note           string `json:"note,omitempty"`
+}
+
+// QuestionSet — файл вопросов.
+type QuestionSet struct {
+	Schema    int        `json:"schema"`
+	Version   int        `json:"version"`
+	Questions []Question `json:"questions"`
+}
+
+// LoadQuestions читает файл вопросов.
+func LoadQuestions(path string) (QuestionSet, error) { return QuestionSet{}, ErrNotImplemented }
+
+// Verify — проверка разметки: id уникальны, split известен, у отвечаемых
+// есть evidence, каждый Evidence.Quote находится (corpus.Find) в своём
+// документе, у out нет evidence. Список всех нарушений, а не первое.
+func (qs QuestionSet) Verify(docs []corpus.Doc) []error { return nil }
+
+// Split — вопросы набора.
+func (qs QuestionSet) Split(name string) []Question { return nil }
+
+// CompareOptions — параметры сравнения стратегий.
+type CompareOptions struct {
+	Indexes []string // id индексов; пусто — все
+	Splits  []string // пусто — dev и test
+	K       []int    // 0 → {1, 3, 5}
+	// Budget — бюджет контекста в токенах для recall при одинаковом объёме
+	// (берутся чанки топа, пока влезают); 0 → 1500.
+	Budget int
+	Mode   Mode // dense по умолчанию; bm25 — справочная строка
+}
+
+// IndexStats — структурные метрики индекса (без вопросов).
+type IndexStats struct {
+	Index    string   `json:"index"`
+	Strategy Strategy `json:"strategy"`
+	Params   Params   `json:"params"`
+	Embedder string   `json:"embedder"`
+	Chunks   int      `json:"chunks"`
+	P50      int      `json:"p50_tokens"`
+	P95      int      `json:"p95_tokens"`
+	Tokens   int      `json:"tokens"`
+	// MixedShare — доля чанков, захвативших два и более раздела.
+	MixedShare float64 `json:"mixed_share"`
+	// SplitSections — доля разделов (с собственным текстом), разрезанных на
+	// несколько чанков.
+	SplitSections float64 `json:"split_sections"`
+	// OverlapShare — доля символов, попавших в индекс повторно (перекрытие).
+	OverlapShare float64 `json:"overlap_share"`
+	// MidSentence — доля чанков, оборванных посреди предложения.
+	MidSentence  float64 `json:"mid_sentence"`
+	BuildSeconds float64 `json:"build_seconds"`
+	Bytes        int64   `json:"bytes"`
+}
+
+// Retrieval — метрики поиска индекса на наборе вопросов.
+type Retrieval struct {
+	Index string `json:"index"`
+	Mode  Mode   `json:"mode"`
+	Split string `json:"split"`
+	N     int    `json:"n"`
+	// BrokenEvidence — доля доказательств, которые не покрыты ни одним
+	// чанком индекса (≥ EvidenceCover): их нельзя найти никаким поиском.
+	BrokenEvidence float64         `json:"broken_evidence"`
+	Recall         map[int]float64 `json:"recall"` // k → доля вопросов с релевантным чанком в топ-k
+	MRR            float64         `json:"mrr"`
+	// RecallBudget — то же при одинаковом бюджете токенов топа.
+	RecallBudget float64 `json:"recall_budget"`
+	// Rows — по вопросу: ранг первого релевантного (0 — не найден).
+	Rows []RetrievalRow `json:"rows"`
+}
+
+// RetrievalRow — вопрос в отчёте.
+type RetrievalRow struct {
+	ID    string   `json:"id"`
+	Q     string   `json:"q"`
+	Rank  int      `json:"rank"`
+	Top   []string `json:"top"` // chunk_id топ-5
+	Score float64  `json:"score"`
+}
+
+// Report — сравнение стратегий.
+type Report struct {
+	Created   time.Time    `json:"created"`
+	CorpusSHA string       `json:"corpus_sha"`
+	Docs      int          `json:"docs"`
+	Pages     float64      `json:"pages"`
+	Embedder  string       `json:"embedder"`
+	Stats     []IndexStats `json:"stats"`
+	Retrieval []Retrieval  `json:"retrieval"`
+	// Conclusion — вывод числами, собранный кодом из метрик.
+	Conclusion []string `json:"conclusion"`
+}
+
+// Compare строит отчёт по индексам базы и сохраняет его в kb_reports.
+func Compare(ctx context.Context, s *Searcher, qs QuestionSet, o CompareOptions) (Report, error) {
+	return Report{}, ErrNotImplemented
+}
+
+// LastReport — последний сохранённый отчёт (для окна); ok=false — нет.
+func (s *Store) LastReport(ctx context.Context) (Report, bool, error) {
+	return Report{}, false, ErrNotImplemented
+}
+
+// Markdown — отчёт для examples/kb/chunking.md.
+func (r Report) Markdown() string { return "" }
+
+// Covers — какую долю фрагмента [qs, qe) покрывает отрезок [cs, ce).
+func Covers(cs, ce, qs, qe int) float64 {
+	if qe <= qs {
+		return 0
+	}
+	lo, hi := cs, ce
+	if qs > lo {
+		lo = qs
+	}
+	if qe < hi {
+		hi = qe
+	}
+	if hi <= lo {
+		return 0
+	}
+	return float64(hi-lo) / float64(qe-qs)
+}
