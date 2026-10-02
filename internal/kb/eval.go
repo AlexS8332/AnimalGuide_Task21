@@ -1,9 +1,6 @@
 package kb
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
 // Контрольные вопросы базы знаний — eval/questions.json. Разметка не зависит
 // от стратегии чанкинга: релевантность задаёт дословный фрагмент-
@@ -131,6 +128,9 @@ type Retrieval struct {
 	MRR            float64         `json:"mrr"`
 	// RecallBudget — то же при одинаковом бюджете токенов топа.
 	RecallBudget float64 `json:"recall_budget"`
+	// Fallback — почему режим не dense, хотя просили dense (по первому
+	// вопросу, где был откат); пусто — отката не было.
+	Fallback string `json:"fallback,omitempty"`
 	// Rows — по вопросу: ранг первого релевантного (0 — не найден).
 	Rows []RetrievalRow `json:"rows"`
 }
@@ -146,29 +146,20 @@ type RetrievalRow struct {
 
 // Report — сравнение стратегий.
 type Report struct {
-	Created   time.Time    `json:"created"`
-	CorpusSHA string       `json:"corpus_sha"`
-	Docs      int          `json:"docs"`
-	Pages     float64      `json:"pages"`
-	Embedder  string       `json:"embedder"`
+	Created   time.Time `json:"created"`
+	CorpusSHA string    `json:"corpus_sha"`
+	Docs      int       `json:"docs"`
+	Pages     float64   `json:"pages"`
+	Embedder  string    `json:"embedder"`
+	// Budget — бюджет токенов для RecallBudget.
+	Budget    int          `json:"budget"`
 	Stats     []IndexStats `json:"stats"`
 	Retrieval []Retrieval  `json:"retrieval"`
 	// Conclusion — вывод числами, собранный кодом из метрик.
 	Conclusion []string `json:"conclusion"`
 }
 
-// Compare строит отчёт по индексам базы и сохраняет его в kb_reports.
-func Compare(ctx context.Context, s *Searcher, qs QuestionSet, o CompareOptions) (Report, error) {
-	return Report{}, ErrNotImplemented
-}
-
-// LastReport — последний сохранённый отчёт (для окна); ok=false — нет.
-func (s *Store) LastReport(ctx context.Context) (Report, bool, error) {
-	return Report{}, false, ErrNotImplemented
-}
-
-// Markdown — отчёт для examples/kb/chunking.md.
-func (r Report) Markdown() string { return "" }
+// Compare, LastReport и Report.Markdown — в compare.go.
 
 // Covers — какую долю фрагмента [qs, qe) покрывает отрезок [cs, ce).
 func Covers(cs, ce, qs, qe int) float64 {

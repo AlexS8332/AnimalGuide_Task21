@@ -8,7 +8,7 @@ import (
 // Trials — все испытания регрессионного набора по порядку ТЗ. Набор
 // гоняется целиком перед каждым следующим упражнением (шаг 8 регламента).
 func Trials() []Trial {
-	return []Trial{NewFacts(), NewMemory(), NewProfile(), NewCollection(), NewInvariants(), NewCost(), NewMCP(), NewTrivia()}
+	return []Trial{NewFacts(), NewMemory(), NewProfile(), NewCollection(), NewInvariants(), NewCost(), NewMCP(), NewTrivia(), NewKB()}
 }
 
 // Select выбирает испытания по строке флага: «all», «1,6», «И-1,И-6»,

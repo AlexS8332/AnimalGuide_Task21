@@ -37,3 +37,7 @@ server.*.log
 /trivia.db*
 /exports/
 /notes/
+
+# База знаний: пересобираемый индекс (kb index), в git не попадает.
+kb.db*
+/kb/
