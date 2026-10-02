@@ -363,6 +363,43 @@ func TestMidSentenceAndUnion(t *testing.T) {
 	}
 }
 
+// TestLongParagraphNoSpaces — абзац без пробелов и точек (длиннее Max)
+// режется на ceil(длина/Max) частей поровну, каждая ≤ Max, без потерь.
+func TestLongParagraphNoSpaces(t *testing.T) {
+	long := strings.Repeat("абвгдежзик", 300) // 3000 рун
+	d := corpus.Doc{ID: "x", Source: corpus.SourceWikipedia, Title: "X", Intro: "Вступление.",
+		Sections: []corpus.Section{{Path: []string{"Сплошной"}, Title: "Сплошной", Level: 2, Text: long}}}
+	cs := NewStructure(1200, 200).Split(d)
+	var parts []Chunk
+	for _, c := range cs {
+		if c.Section == "Сплошной" {
+			parts = append(parts, c)
+		}
+	}
+	if len(parts) != 3 {
+		t.Fatalf("частей %d, ждали 3", len(parts))
+	}
+	total := 0
+	for _, c := range parts {
+		n := c.End - c.Start
+		total += n
+		if n > 1200 || n < 990 || n > 1010 {
+			t.Errorf("%s: %d рун — не поровну", c.ID, n)
+		}
+	}
+	if total != 3000 || strings.Join([]string{parts[0].Text, parts[1].Text, parts[2].Text}, "") != long {
+		t.Fatalf("текст потерян: %d рун", total)
+	}
+	// С редкими пробелами — тоже поровну и ≤ Max.
+	spaced := strings.Repeat(strings.Repeat("ж", 140)+" ", 20) // 2820 рун
+	d.Sections[0].Text = strings.TrimSpace(spaced)
+	for _, c := range NewStructure(1200, 200).Split(d) {
+		if c.Section == "Сплошной" && (c.End-c.Start > 1200 || c.End-c.Start < 800) {
+			t.Errorf("%s: %d рун", c.ID, c.End-c.Start)
+		}
+	}
+}
+
 // TestFixedSectionMajority — раздел чанка fixed — тот, где лежит большая
 // часть его текста, а не тот, где окно началось: на настоящем корпусе у
 // заметной доли окон это разные разделы, и путь в EmbedText должен быть

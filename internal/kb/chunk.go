@@ -386,21 +386,29 @@ func sentences(l layout, s, e int) []span {
 	return out
 }
 
-// words — последнее средство: куски не длиннее max по пробелам.
+// words — последнее средство: куски не длиннее max по пробелам, поровну:
+// число кусков — ceil(длина/max), и каждый следующий режется у цели
+// «остаток / сколько кусков осталось». Пробел ищется левее цели не дальше
+// её половины; нет пробела (абзац без пробелов и точек) — режем ровно по
+// цели. Жадная резка «по max» оставляла бы в хвосте обрубок.
 func words(l layout, s, e, max int) []span {
 	var out []span
 	for s < e {
-		end := s + max
-		if end >= e {
-			out = append(out, span{s: s, e: e})
+		rest := e - s
+		if rest <= max {
+			if ps, pe := l.trim(s, e); ps < pe {
+				out = append(out, span{s: ps, e: pe})
+			}
 			break
 		}
+		n := (rest + max - 1) / max
+		end := s + (rest+n-1)/n // ceil(rest/n) ≤ max
 		cut := end
-		for cut > s && !unicode.IsSpace(l.text[cut]) {
+		for cut > s+(end-s)/2 && !unicode.IsSpace(l.text[cut]) {
 			cut--
 		}
-		if cut == s {
-			cut = end // слово длиннее max — режем как есть
+		if !unicode.IsSpace(l.text[cut]) {
+			cut = end // пробела рядом нет — режем как есть
 		}
 		ps, pe := l.trim(s, cut)
 		if ps < pe {

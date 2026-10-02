@@ -8,7 +8,8 @@ import (
 // TestRepositorySnapshot — снимок в репозитории цел и годится в индекс:
 // манифест сходится (Load), объём не меньше 30 страниц, у каждой статьи
 // Википедии есть ревизия, служебных разделов и пустых листьев нет, пути
-// разделов не повторяются.
+// разделов не повторяются, абзацы внутри документа — тоже (дубль абзаца —
+// признак того, что текст подраздела попал и в родителя).
 func TestRepositorySnapshot(t *testing.T) {
 	docs, m, err := Load("../../corpus")
 	if err != nil {
@@ -31,6 +32,22 @@ func TestRepositorySnapshot(t *testing.T) {
 		}
 		if d.Intro == "" {
 			t.Errorf("%s: нет вступления", d.ID)
+		}
+		// Повторы абзацев ≥ 60 символов внутри документа (короткие строки
+		// вроде «Статус МСОП: …» в MDD повторяются законно).
+		paras := map[string]string{}
+		for _, b := range append([]Section{{Path: []string{IntroTitle}, Text: d.Intro}}, d.Sections...) {
+			for _, para := range strings.Split(b.Text, "\n") {
+				para = strings.TrimSpace(para)
+				if len([]rune(para)) < 60 {
+					continue
+				}
+				where := strings.Join(b.Path, " › ")
+				if prev, ok := paras[para]; ok {
+					t.Errorf("%s: абзац повторяется в «%s» и «%s»: %.80s…", d.ID, prev, where, para)
+				}
+				paras[para] = where
+			}
 		}
 		seen := map[string]bool{}
 		for i, s := range d.Sections {

@@ -52,4 +52,4 @@ Database Американского общества маммалогов (ASM),
 распространяется по лицензии Creative Commons «Атрибуция» 4.0
 (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/deed.ru).
 
-- «Хищные (Carnivora) в Mammal Diversity Database» — https://www.mammaldiversity.org, данные от 2026-09-25T07:13:29Z
+- «Хищные (Carnivora) в Mammal Diversity Database» — https://www.mammaldiversity.org, релиз MDD v2.5 от 2026-07-28, данные от 2026-09-25T07:13:29Z
