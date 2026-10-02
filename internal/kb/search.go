@@ -164,16 +164,22 @@ func (s *Searcher) load(ctx context.Context, idx IndexInfo) (*denseIndex, error)
 	return di, nil
 }
 
-// bm25 — лексический поиск FTS5. bm25() в SQLite отрицателен и «лучше —
+// bm25 — лексический поиск FTS5 по таблице индекса. bm25() в SQLite отрицателен и «лучше —
 // меньше», поэтому балл — его минус, нормированный к лучшему в выдаче.
 func (s *Searcher) bm25(ctx context.Context, index, query string, k int) ([]Hit, error) {
 	match := ftsQuery(query)
 	if match == "" {
 		return nil, nil
 	}
-	rows, err := s.Store.db.QueryContext(ctx, `SELECT f.chunk_id, bm25(kb_fts) AS score
-		FROM kb_fts f WHERE kb_fts MATCH ? AND f.index_id = ?
-		ORDER BY score, f.chunk_id LIMIT ?`, match, index, k)
+	t, err := ftsTable(index)
+	if err != nil {
+		return nil, err
+	}
+	// Таблица FTS своя у индекса: IDF и средняя длина — по его чанкам, и
+	// ранги не зависят от того, какие ещё индексы есть в базе.
+	rows, err := s.Store.db.QueryContext(ctx, `SELECT chunk_id, bm25(`+t+`) AS score
+		FROM `+t+` WHERE `+t+` MATCH ?
+		ORDER BY score, chunk_id LIMIT ?`, match, k)
 	if err != nil {
 		return nil, fmt.Errorf("BM25: %w", err)
 	}

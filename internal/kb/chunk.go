@@ -102,6 +102,24 @@ func (l layout) at(pos int) int {
 	return i
 }
 
+// majority — блок, которому принадлежит большая часть отрезка [s, e)
+// (по территориям блоков: строка заголовка считается текстом своего
+// раздела); при равенстве — более ранний.
+func (l layout) majority(s, e int) int {
+	best, bestLen := l.at(s), -1
+	for i, b := range l.blocks {
+		hi := len(l.text)
+		if i+1 < len(l.blocks) {
+			hi = l.blocks[i+1].head
+		}
+		lo := max(b.head, s)
+		if n := min(hi, e) - lo; n > bestLen {
+			best, bestLen = i, n
+		}
+	}
+	return best
+}
+
 // mixed — пересекает ли отрезок строку заголовка другого раздела. Заголовок
 // в самом начале отрезка не считается: это начало раздела, а не граница
 // внутри чанка.
@@ -403,13 +421,14 @@ func isCloser(r rune) bool   { return r == '»' || r == '"' || r == ')' || r == 
 
 type fixed struct{ size, overlap int }
 
-// NewFixed — окно size рун с перекрытием overlap (0 → DefaultSize и
-// DefaultOverlapPct % размера).
+// NewFixed — окно size рун с перекрытием overlap. size ≤ 0 → DefaultSize;
+// overlap < 0 → DefaultOverlapPct % размера, 0 — без перекрытия (окна
+// встык).
 func NewFixed(size, overlap int) Chunker {
 	if size <= 0 {
 		size = DefaultSize
 	}
-	if overlap <= 0 {
+	if overlap < 0 {
 		overlap = size * DefaultOverlapPct / 100
 	}
 	if overlap >= size/2 {
@@ -424,8 +443,10 @@ func (c fixed) Params() Params     { return Params{Size: c.size, Overlap: c.over
 // Split ведёт окно по сплошному тексту документа, не глядя на разделы.
 // Границы окна сдвигаются к ближайшему пробелу (не дальше десятой части
 // размера), чтобы не рвать слово; следующее окно начинается за overlap до
-// конца предыдущего. Раздел чанка — тот, где он начался; Mixed — окно
-// пересекло строку «## …».
+// конца предыдущего (без перекрытия — ровно с конца). Раздел чанка — тот,
+// которому принадлежит большая часть его текста: раздел «где начался» у
+// окна, задевшего хвост предыдущего раздела, был бы чужим, а путь раздела
+// уходит в EmbedText и FTS. Mixed — окно пересекло строку «## …».
 func (c fixed) Split(d corpus.Doc) []Chunk {
 	l := newLayout(d)
 	n := len(l.text)
@@ -441,12 +462,15 @@ func (c fixed) Split(d corpus.Doc) []Chunk {
 		}
 		s, e := l.trim(start, end)
 		if s < e {
-			out = append(out, l.chunk(d, Fixed, len(out), s, e, l.at(s)))
+			out = append(out, l.chunk(d, Fixed, len(out), s, e, l.majority(s, e)))
 		}
 		if end >= n {
 			break
 		}
-		next := nearestSpace(l.text, end-c.overlap, reach, start+1)
+		next := end
+		if c.overlap > 0 {
+			next = nearestSpace(l.text, end-c.overlap, reach, start+1)
+		}
 		if next <= start {
 			next = end
 		}

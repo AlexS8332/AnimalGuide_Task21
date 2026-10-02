@@ -75,7 +75,7 @@ func runIndex(ctx context.Context, args []string, out, errOut io.Writer) int {
 	strategy := fs.String("strategy", "all", "стратегия: fixed, structure или all (structure, затем fixed по медиане structure)")
 	which := embedderFlag(fs)
 	size := fs.Int("size", 0, "fixed: размер окна в символах (0 — медиана structure при all, иначе 800)")
-	overlap := fs.Int("overlap", 0, "fixed: перекрытие в символах (0 — 15 % размера)")
+	overlap := fs.Int("overlap", -1, "fixed: перекрытие в символах (0 — без перекрытия; по умолчанию 15 % размера)")
 	maxLen := fs.Int("max", kb.DefaultMax, "structure: самый длинный чанк в символах")
 	minLen := fs.Int("min", kb.DefaultMin, "structure: короче — склеивается с соседом того же родителя")
 	if code := parseFlags(fs, args); code >= 0 {
@@ -172,7 +172,7 @@ func runIndex(ctx context.Context, args []string, out, errOut io.Writer) int {
 			n = kb.MedianChars(chunks)
 		}
 		ov := *overlap
-		if ov == 0 && n > 0 {
+		if ov < 0 && n > 0 {
 			ov = n * kb.DefaultOverlapPct / 100
 		}
 		if _, ok := build(kb.NewFixed(n, ov)); !ok {

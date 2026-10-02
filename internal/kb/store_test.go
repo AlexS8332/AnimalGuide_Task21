@@ -3,6 +3,7 @@ package kb
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -126,7 +127,7 @@ func TestStoreRoundTrip(t *testing.T) {
 		t.Fatalf("после пересборки %d чанков, ждали %d", len(again), n)
 	}
 	var fts int
-	st.db.QueryRow(`SELECT count(*) FROM kb_fts WHERE index_id = 'structure'`).Scan(&fts)
+	st.db.QueryRow(`SELECT count(*) FROM kb_fts_structure`).Scan(&fts)
 	if fts != n {
 		t.Fatalf("в FTS %d строк, ждали %d", fts, n)
 	}
@@ -330,5 +331,74 @@ func TestFTSQuery(t *testing.T) {
 		if got := ftsQuery(q); got != want {
 			t.Errorf("ftsQuery(%q) = %s, ждали %s", q, got, want)
 		}
+	}
+}
+
+// TestBM25PerIndex — ранги BM25 индекса не зависят от состава базы: в базе
+// только со structure и в базе с обоими индексами выдача structure
+// одинакова (IDF и средняя длина — по таблице FTS своего индекса). И база
+// со старой общей kb_fts (шаг миграции 1) после Open ищет так же: таблица
+// индекса восстанавливается из kb_chunks.
+func TestBM25PerIndex(t *testing.T) {
+	ctx := context.Background()
+	docs := realDocs(t)
+	open := func(path string) *Store {
+		st, err := Open(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return st
+	}
+	dir := t.TempDir()
+	one, both := open(filepath.Join(dir, "one.db")), open(filepath.Join(dir, "both.db"))
+	defer one.Close()
+	for _, st := range []*Store{one, both} {
+		if err := st.PutCorpus(ctx, docs, miniManifest(docs, "real")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.Build(ctx, NewStructure(0, 0), nil, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := both.Build(ctx, NewFixed(300, 0), nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	queries := []string{"чем питается манул", "сколько весит снежный барс", "где обитает корсак",
+		"сколько видов кошачьих", "продолжительность жизни в неволе", "окраска шерсти зимой"}
+	ranks := func(st *Store) []string {
+		s := &Searcher{Store: st}
+		var out []string
+		for _, q := range queries {
+			hits, _, err := s.Search(ctx, q, SearchOptions{Index: "structure", Mode: BM25, K: 10})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, h := range hits {
+				out = append(out, fmt.Sprintf("%s %s %.6f", q, h.ID, h.Score))
+			}
+		}
+		return out
+	}
+	want, got := ranks(one), ranks(both)
+	if len(want) == 0 || strings.Join(want, "\n") != strings.Join(got, "\n") {
+		t.Fatalf("ранги BM25 structure зависят от соседнего индекса:\n%s\n---\n%s", strings.Join(want, "\n"), strings.Join(got, "\n"))
+	}
+
+	// База шага 1: общая kb_fts вместо таблиц индексов.
+	for _, q := range []string{`DROP TABLE kb_fts_structure`, `DROP TABLE kb_fts_fixed`,
+		`CREATE VIRTUAL TABLE kb_fts USING fts5 (text, chunk_id UNINDEXED, index_id UNINDEXED, tokenize = 'trigram')`,
+		`UPDATE schema_migrations SET version = 1 WHERE component = 'kb'`} {
+		if _, err := both.db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	both.Close()
+	again := open(filepath.Join(dir, "both.db"))
+	defer again.Close()
+	if got := ranks(again); strings.Join(want, "\n") != strings.Join(got, "\n") {
+		t.Fatalf("после миграции со старой kb_fts выдача другая")
+	}
+	if _, _, err := (&Searcher{Store: again}).Search(ctx, "манул", SearchOptions{Index: "fixed", Mode: BM25}); err != nil {
+		t.Fatalf("fixed после миграции: %v", err)
 	}
 }

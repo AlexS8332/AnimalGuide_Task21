@@ -225,8 +225,8 @@ func TestFixedMini(t *testing.T) {
 		if i > 0 && c.Start >= cs[i-1].End {
 			t.Errorf("%s: нет перекрытия", c.ID)
 		}
-		// Раздел — где чанк начался.
-		if want := l.blocks[l.at(c.Start)].section(); c.Section != want {
+		// Раздел — тот, где лежит большая часть текста чанка.
+		if want := l.blocks[l.majority(c.Start, c.End)].section(); c.Section != want {
 			t.Errorf("%s: раздел %q, ждали %q", c.ID, c.Section, want)
 		}
 		if c.Mixed != strings.Contains(c.Text, "\n##") {
@@ -246,8 +246,18 @@ func TestFixedMini(t *testing.T) {
 	if c := NewFixed(0, 0).Split(miniDocs()[1]); len(c) != 1 || c[0].Text != miniDocs()[1].Intro {
 		t.Fatalf("короткий документ: %+v", c)
 	}
-	if p := NewFixed(0, 0).Params(); p.Size != DefaultSize || p.Overlap != DefaultSize*DefaultOverlapPct/100 {
+	if p := NewFixed(0, -1).Params(); p.Size != DefaultSize || p.Overlap != DefaultSize*DefaultOverlapPct/100 {
 		t.Fatalf("умолчания fixed: %+v", p)
+	}
+	// overlap 0 — без перекрытия: окна идут встык.
+	if p := NewFixed(0, 0).Params(); p.Overlap != 0 {
+		t.Fatalf("overlap 0: %+v", p)
+	}
+	nov := NewFixed(120, 0).Split(d)
+	for i := 1; i < len(nov); i++ {
+		if nov[i].Start < nov[i-1].End {
+			t.Fatalf("%s: перекрытие при overlap 0 (%d < %d)", nov[i].ID, nov[i].Start, nov[i-1].End)
+		}
 	}
 	if p := NewStructure(0, 0).Params(); p.Max != DefaultMax || p.Min != DefaultMin {
 		t.Fatalf("умолчания structure: %+v", p)
@@ -350,5 +360,58 @@ func TestMidSentenceAndUnion(t *testing.T) {
 	}
 	if MedianChars([]Chunk{{Start: 0, End: 10}, {Start: 0, End: 30}, {Start: 0, End: 20}}) != 20 {
 		t.Error("MedianChars")
+	}
+}
+
+// TestFixedSectionMajority — раздел чанка fixed — тот, где лежит большая
+// часть его текста, а не тот, где окно началось: на настоящем корпусе у
+// заметной доли окон это разные разделы, и путь в EmbedText должен быть
+// путём большинства.
+func TestFixedSectionMajority(t *testing.T) {
+	differ, total := 0, 0
+	for _, d := range realDocs(t) {
+		l := newLayout(d)
+		for _, c := range NewFixed(0, -1).Split(d) {
+			total++
+			b := l.blocks[l.majority(c.Start, c.End)]
+			// Доля текста чанка на территории его раздела — не меньше,
+			// чем у любого другого блока.
+			own, most := 0, 0
+			for i, x := range l.blocks {
+				hi := len(l.text)
+				if i+1 < len(l.blocks) {
+					hi = l.blocks[i+1].head
+				}
+				n := max(0, min(hi, c.End)-max(x.head, c.Start))
+				if x.head == b.head {
+					own = n
+				}
+				most = max(most, n)
+			}
+			if own != most {
+				t.Fatalf("%s: у раздела %q %d рун чанка, а у другого — %d", c.ID, b.section(), own, most)
+			}
+			if c.Section != b.section() || strings.Join(c.Path, sep) != strings.Join(b.path, sep) {
+				t.Fatalf("%s: раздел %q, ждали %q", c.ID, c.Section, b.section())
+			}
+			if l.at(c.Start) != l.majority(c.Start, c.End) {
+				differ++
+			}
+		}
+	}
+	if differ == 0 {
+		t.Fatalf("ни у одного из %d окон раздел начала не отличается от раздела большинства — тест ничего не проверяет", total)
+	}
+	t.Logf("окон, где раздел начала ≠ раздел большинства: %d из %d", differ, total)
+
+	// Мини-случай: окно задело хвост вступления и ушло в «Описание».
+	d := miniDocs()[0]
+	l := newLayout(d)
+	s := l.blocks[1].head - 5
+	if got := l.blocks[l.majority(s, s+100)].section(); got != "Описание" {
+		t.Fatalf("раздел большинства %q", got)
+	}
+	if got := l.blocks[l.at(s)].section(); got != corpus.IntroTitle {
+		t.Fatalf("раздел начала %q", got)
 	}
 }
