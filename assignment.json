@@ -1,0 +1,14 @@
+{
+  "num": "21",
+  "slug": "animal-guide-kb-index",
+  "title": "AnimalGuide: база знаний — корпус, две стратегии чанкинга, эмбеддинги, индекс (DeepSeek, Go + браузер)",
+  "stack": "go",
+  "status": "planned",
+  "created": "2026-10-02",
+  "updated": "2026-10-02",
+  "repo": "",
+  "env": [
+    "DEEPSEEK_API_KEY"
+  ],
+  "tags": []
+}
