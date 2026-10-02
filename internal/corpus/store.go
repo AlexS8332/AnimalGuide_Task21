@@ -294,7 +294,31 @@ func writeLicense(dir string, docs []Doc) error {
 			b.WriteString("распространяется по лицензии Creative Commons «Атрибуция» 4.0\n")
 			b.WriteString("(CC BY 4.0, https://creativecommons.org/licenses/by/4.0/deed.ru).\n\n")
 		}
-		fmt.Fprintf(&b, "- «%s» — %s, данные от %s\n", d.Title, d.URL, d.Fetched)
+		release := ""
+		if d.Source == SourceMDD {
+			if v, date := mddRelease(d); v != "" {
+				release = ", релиз MDD " + v
+				if date != "" {
+					release += " от " + date
+				}
+			}
+		}
+		fmt.Fprintf(&b, "- «%s» — %s%s, данные от %s\n", d.Title, d.URL, release, d.Fetched)
 	}
 	return writeAtomic(filepath.Join(dir, LicenseFile), []byte(b.String()))
+}
+
+// mddReleaseRe — версия и дата релиза из первой строки вступления MDDDoc
+// («…собран по релизу MDD v2.5 от 2026-07-28…»).
+var mddReleaseRe = regexp.MustCompile(`по релизу MDD (\S+?)(?: от (\d{4}-\d{2}-\d{2}))?(?:[ (]|\.(?:\s|$))`)
+
+// mddRelease — версия и дата релиза MDD документа. Отдельных полей у Doc
+// для них нет (формат документа ради атрибуции не меняем), а вступление
+// пишет MDDDoc по шаблону — оттуда и берём; не нашлось — пусто.
+func mddRelease(d Doc) (version, date string) {
+	m := mddReleaseRe.FindStringSubmatch(d.Intro)
+	if m == nil {
+		return "", ""
+	}
+	return m[1], m[2]
 }

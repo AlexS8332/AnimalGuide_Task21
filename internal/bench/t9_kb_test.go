@@ -1,7 +1,11 @@
 package bench
 
 import (
+	"bytes"
 	"context"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -64,10 +68,70 @@ func TestKBTrialNoEmbedder(t *testing.T) {
 	if r.Count(Fail) != 0 || r.Count(Pending) != 1 {
 		t.Fatalf("проверки: fail %d, pending %d", r.Count(Fail), r.Count(Pending))
 	}
+	// Числа — по строкам BM25, а не «0.00 против 0.00» из пустых dense.
+	re := regexp.MustCompile(`BM25: (\d\.\d\d) против (\d\.\d\d)`)
 	for _, c := range r.Checks {
-		if c.Status == Pending && !strings.Contains(c.Note, "недоступен") {
+		if c.Status != Pending {
+			continue
+		}
+		if !strings.Contains(c.Note, "недоступен") {
 			t.Fatalf("причина: %q", c.Note)
 		}
+		m := re.FindStringSubmatch(c.Note)
+		if m == nil || m[1] == "0.00" || m[2] == "0.00" {
+			t.Fatalf("recall BM25 в причине: %q", c.Note)
+		}
+	}
+}
+
+// TestKBTrialSharedCache — общий кэш эмбеддингов: векторы второго прогона
+// берутся из kb.db первого (без промахов), а сама общая база не меняется.
+func TestKBTrialSharedCache(t *testing.T) {
+	run := func(cache string) (*Result, string) {
+		t.Helper()
+		s := &Stand{env: &Env{}, dir: t.TempDir()}
+		tr := &KB{CorpusDir: "../../corpus", Questions: "../../eval/questions.json", Embedder: embed.Hash{}, CacheDB: cache}
+		r := &Result{}
+		if err := tr.Run(context.Background(), s, r); err != nil {
+			t.Fatal(err)
+		}
+		if r.Count(Fail) != 0 {
+			t.Fatalf("проваленные проверки: %+v", r.Checks)
+		}
+		return r, filepath.Join(s.Dir(), "kb.db")
+	}
+	metric := func(r *Result, what string) string {
+		for _, m := range r.Metrics {
+			if m.What == what {
+				return m.Value
+			}
+		}
+		return ""
+	}
+	first, shared := run("-")
+	if got := metric(first, "кэш эмбеддингов (первая сборка)"); got == "" || strings.HasSuffix(got, " 0 промахов") {
+		t.Fatalf("без общего кэша: %q", got)
+	}
+	// kb.db первого прогона — общий кэш второго.
+	before, err := os.ReadFile(shared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _ := run(shared)
+	if got := metric(second, "кэш эмбеддингов (первая сборка)"); !strings.HasSuffix(got, " 0 промахов") {
+		t.Fatalf("с общим кэшем: %q", got)
+	}
+	if got := metric(second, "общий кэш эмбеддингов (только чтение)"); !strings.Contains(got, "hash-256") {
+		t.Fatalf("метрика общего кэша: %q", got)
+	}
+	after, _ := os.ReadFile(shared)
+	if !bytes.Equal(before, after) {
+		t.Fatal("общая база изменилась")
+	}
+	// Нет файла — заметка, а не ошибка.
+	third, _ := run(filepath.Join(t.TempDir(), "nope.db"))
+	if !strings.Contains(strings.Join(third.Notes, "\n"), "не открылся") {
+		t.Fatalf("заметки: %q", third.Notes)
 	}
 }
 

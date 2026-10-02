@@ -14,7 +14,7 @@ func init() {
 
 func runStats(ctx context.Context, args []string, out, errOut io.Writer) int {
 	fs := newFlagSet("stats", "[флаги]", errOut)
-	dbPath := fs.String("db", defaultDB, "файл базы знаний")
+	dbPath := dbFlag(fs)
 	if code := parseFlags(fs, args); code >= 0 {
 		return code
 	}

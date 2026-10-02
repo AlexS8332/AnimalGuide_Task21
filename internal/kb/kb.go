@@ -40,8 +40,8 @@ type Strategy string
 
 const (
 	// Fixed — окно фиксированного размера с перекрытием по сплошному тексту
-	// документа (Doc.Text), без оглядки на разделы; раздел чанка — тот, где
-	// он начался.
+	// документа (Doc.Text), без оглядки на разделы; раздел чанка — раздел
+	// большинства: тот, которому принадлежит большая часть текста чанка.
 	Fixed Strategy = "fixed"
 	// Structure — граница по заголовкам: собственное тело раздела — чанк;
 	// длиннее Max — режется по абзацам (затем по предложениям), короче Min —
@@ -105,7 +105,8 @@ type Chunker interface {
 	Split(d corpus.Doc) []Chunk
 }
 
-// NewFixed и NewStructure — стратегии с параметрами (0 → умолчания);
+// NewFixed и NewStructure — стратегии с параметрами (0 → умолчания; у
+// перекрытия fixed умолчание — отрицательное значение, 0 — без перекрытия);
 // реализация — в chunk.go.
 
 // IndexInfo — индекс в базе.
@@ -137,10 +138,10 @@ type DocInfo struct {
 	SHA256  string  `json:"sha256"`
 }
 
-// Store — kb.db. Таблицы (шаг миграции 1): kb_meta (corpus_sha, манифест),
-// kb_docs (doc JSON целиком), kb_indexes, kb_chunks (метаданные, текст,
-// vec BLOB float32 LE), kb_embed_cache, kb_fts (FTS5, trigram, по kb_chunks),
-// kb_reports (последний отчёт сравнения, JSON).
+// Store — kb.db. Таблицы: kb_meta (corpus_sha, манифест), kb_docs (doc
+// JSON целиком), kb_indexes, kb_chunks (метаданные, текст, vec BLOB float32
+// LE), kb_embed_cache, kb_fts_<index_id> (FTS5, trigram, своя на индекс —
+// шаг миграции 2), kb_reports (последний отчёт сравнения, JSON).
 type Store struct {
 	db *sql.DB
 }

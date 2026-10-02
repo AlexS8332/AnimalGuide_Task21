@@ -80,6 +80,12 @@ func (f *Fake) Short(on bool) { f.mu.Lock(); f.short = on; f.mu.Unlock() }
 // Hash из своих горутин).
 func (f *Fake) SetHash(h embed.Hash) { f.mu.Lock(); f.Hash = h; f.mu.Unlock() }
 
+// SetModel — сервер называет себя другой моделью (под мьютексом, как
+// SetHash).
+func (f *Fake) SetModel(m string) { f.mu.Lock(); f.Model = m; f.mu.Unlock() }
+
+func (f *Fake) model() string { f.mu.Lock(); defer f.mu.Unlock(); return f.Model }
+
 // NoHealth — /health отвечает 404; остаётся только /v1/models.
 func (f *Fake) NoHealth(on bool) { f.mu.Lock(); f.noHealth = on; f.mu.Unlock() }
 
@@ -91,11 +97,11 @@ func (f *Fake) health(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"ok": true, "model": f.Model, "dims": dims, "device": "test"})
+	writeJSON(w, 200, map[string]any{"ok": true, "model": f.model(), "dims": dims, "device": "test"})
 }
 
 func (f *Fake) models(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]any{"object": "list", "data": []map[string]any{{"id": f.Model, "object": "model"}}})
+	writeJSON(w, 200, map[string]any{"object": "list", "data": []map[string]any{{"id": f.model(), "object": "model"}}})
 }
 
 func (f *Fake) embeddings(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +139,7 @@ func (f *Fake) embeddings(w http.ResponseWriter, r *http.Request) {
 		}
 		data = append(data, map[string]any{"object": "embedding", "index": i, "embedding": v})
 	}
-	writeJSON(w, 200, map[string]any{"object": "list", "data": data, "model": f.Model,
+	writeJSON(w, 200, map[string]any{"object": "list", "data": data, "model": f.model(),
 		"usage": map[string]int{"prompt_tokens": 0, "total_tokens": 0}})
 }
 

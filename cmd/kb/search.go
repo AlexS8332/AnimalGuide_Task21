@@ -17,7 +17,7 @@ func init() {
 
 func runSearch(ctx context.Context, args []string, out, errOut io.Writer) int {
 	fs := newFlagSet("search", `[флаги] "вопрос"`, errOut)
-	dbPath := fs.String("db", defaultDB, "файл базы знаний")
+	dbPath := dbFlag(fs)
 	index := fs.String("index", "all", "индекс: structure, fixed или all (каждый по очереди)")
 	k := fs.Int("k", kb.DefaultK, "сколько чанков показать")
 	mode := fs.String("mode", "dense", "режим: dense (с откатом на BM25) или bm25")
@@ -74,7 +74,7 @@ func runSearch(ctx context.Context, args []string, out, errOut io.Writer) int {
 	}
 	s := &kb.Searcher{Store: st}
 	if *mode == string(kb.Dense) {
-		emb, err := pickEmbedder(ctx, *which, errOut)
+		emb, err := pickEmbedder(ctx, which, errOut)
 		if err != nil {
 			fmt.Fprintln(errOut, "ошибка:", err)
 			return exitUsage

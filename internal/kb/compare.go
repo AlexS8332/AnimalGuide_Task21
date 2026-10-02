@@ -39,9 +39,29 @@ type agg struct {
 	hits          map[int]int
 	rr            float64
 	budget        int
+	all5, allBudg int
+	multi         int
+	rows          []RetrievalRow
 }
 
 func (a *agg) recall(k int) float64 { return ratio(a.hits[k], a.n) }
+
+// recallText — «, recall@1 0.50, recall@3 0.73» по тем k, что считались
+// (кроме 5: он в выводе — числом вопросов).
+func (a *agg) recallText() string {
+	ks := make([]int, 0, len(a.hits))
+	for k := range a.hits {
+		if k != 5 {
+			ks = append(ks, k)
+		}
+	}
+	sort.Ints(ks)
+	var b strings.Builder
+	for _, k := range ks {
+		fmt.Fprintf(&b, ", recall@%d %.2f", k, a.recall(k))
+	}
+	return b.String()
+}
 
 // Compare строит отчёт по индексам базы и сохраняет его в kb_reports.
 // Режим по умолчанию — dense (с откатом, как в живом поиске); Mode == BM25
@@ -82,12 +102,20 @@ func Compare(ctx context.Context, s *Searcher, qs QuestionSet, o CompareOptions)
 		depth = max(depth, k)
 	}
 
-	// Доказательства вопросов — в смещения один раз.
+	// Доказательства вопросов — в смещения один раз. inScope — без
+	// повторов, только вопросы сравниваемых наборов (для WholeEvidence).
 	evs := map[string][]evidence{}
+	var inScope []evidence
+	seenEv := map[evidence]bool{}
 	for _, q := range qs.Questions {
 		for _, e := range q.Evidence {
 			if start, n := corpus.Find(texts[e.DocID], e.Quote); start >= 0 {
-				evs[q.ID] = append(evs[q.ID], evidence{doc: e.DocID, s: start, e: start + n})
+				x := evidence{doc: e.DocID, s: start, e: start + n}
+				evs[q.ID] = append(evs[q.ID], x)
+				if q.Answerable && contains(splits, q.Split) && !seenEv[x] {
+					seenEv[x] = true
+					inScope = append(inScope, x)
+				}
 			}
 		}
 	}
@@ -119,6 +147,17 @@ func Compare(ctx context.Context, s *Searcher, qs QuestionSet, o CompareOptions)
 			return Report{}, err
 		}
 		stats := indexStats(ix, chunks, layouts)
+		stats.Evidence = len(inScope)
+		whole := 0
+		for _, e := range inScope {
+			for _, c := range chunks {
+				if c.DocID == e.doc && c.Start <= e.s && c.End >= e.e {
+					whole++
+					break
+				}
+			}
+		}
+		stats.WholeEvidence = ratio(whole, len(inScope))
 		if stats.Bytes, err = st.indexBytes(ctx, ix.ID); err != nil {
 			return Report{}, err
 		}
@@ -157,6 +196,10 @@ func Compare(ctx context.Context, s *Searcher, qs QuestionSet, o CompareOptions)
 				a.broken += ret.broken
 				a.rr += ret.MRR * float64(ret.N)
 				a.budget += ret.budgetHits
+				a.all5 += ret.all5
+				a.allBudg += ret.allBudget
+				a.multi += ret.Multi
+				a.rows = append(a.rows, ret.Rows...)
 				for _, k := range ks {
 					a.hits[k] += ret.hits[k]
 				}
@@ -182,9 +225,10 @@ func Compare(ctx context.Context, s *Searcher, qs QuestionSet, o CompareOptions)
 // retrievalRun — строка отчёта и счётчики для сводки.
 type retrievalRun struct {
 	Retrieval
-	ev, broken int
-	hits       map[int]int
-	budgetHits int
+	ev, broken      int
+	hits            map[int]int
+	budgetHits      int
+	all5, allBudget int
 }
 
 // retrieval — один индекс, один режим, один набор. В счёт идут только
@@ -215,6 +259,9 @@ func retrieval(ctx context.Context, s *Searcher, ix IndexInfo, mode Mode, split 
 		if info.Fallback != "" && run.Fallback == "" {
 			run.Fallback = info.Fallback
 		}
+		if len(ev) > 1 {
+			run.Multi++
+		}
 		row := RetrievalRow{ID: q.ID, Q: q.Q}
 		for i, h := range hits {
 			if i < 5 {
@@ -228,6 +275,41 @@ func retrieval(ctx context.Context, s *Searcher, ix IndexInfo, mode Mode, split 
 		if row.Rank == 0 && len(hits) > 0 {
 			row.Score = hits[0].Score
 		}
+		// Одинаковый бюджет: чанки топа по порядку, пока влезают.
+		fit, used := 0, 0
+		for _, h := range hits {
+			if used+h.Tokens > budget {
+				break
+			}
+			used += h.Tokens
+			fit++
+		}
+		// Ранг каждого доказательства: самое дальнее решает, нашлись ли все.
+		last := 0
+		for _, e := range ev {
+			r := 0
+			for i, h := range hits {
+				if relevant(h.Chunk, []evidence{e}) {
+					r = i + 1
+					break
+				}
+			}
+			if r == 0 {
+				last = 0
+				break
+			}
+			last = max(last, r)
+		}
+		row.All5 = last > 0 && last <= 5
+		if row.All5 {
+			run.all5++
+		}
+		if last > 0 && last <= fit {
+			run.allBudget++
+		}
+		if row.Rank > 0 && row.Rank <= fit {
+			run.budgetHits++
+		}
 		run.Rows = append(run.Rows, row)
 		if row.Rank > 0 {
 			rrSum += 1 / float64(row.Rank)
@@ -235,18 +317,6 @@ func retrieval(ctx context.Context, s *Searcher, ix IndexInfo, mode Mode, split 
 				if row.Rank <= k {
 					run.hits[k]++
 				}
-			}
-		}
-		// Одинаковый бюджет: чанки топа по порядку, пока влезают.
-		used := 0
-		for _, h := range hits {
-			if used+h.Tokens > budget {
-				break
-			}
-			used += h.Tokens
-			if relevant(h.Chunk, ev) {
-				run.budgetHits++
-				break
 			}
 		}
 	}
@@ -259,6 +329,8 @@ func retrieval(ctx context.Context, s *Searcher, ix IndexInfo, mode Mode, split 
 	if run.N > 0 {
 		run.MRR = rrSum / float64(run.N)
 		run.RecallBudget = ratio(run.budgetHits, run.N)
+		run.RecallAll5 = ratio(run.all5, run.N)
+		run.RecallAllBudget = ratio(run.allBudget, run.N)
 	}
 	run.BrokenEvidence = ratio(run.broken, run.ev)
 	return run, nil
@@ -447,8 +519,102 @@ func (r Report) stats(id string) (IndexStats, bool) {
 	return IndexStats{}, false
 }
 
+// NoiseQuestions — с какого перевеса в вопросах парное сравнение по
+// recall@5 называет одну сторону лучшей. Вопросов в сравнении — два-три
+// десятка, и разница в один-два вопроса — это одна неудачная формулировка
+// или одно доказательство на стыке, а не свойство стратегии.
+const NoiseQuestions = 3
+
+// pairing — парное сравнение двух прогонов на одних и тех же вопросах.
+type pairing struct {
+	n                    int // общих вопросов
+	hitA, hitB           int // нашлось в топ-5
+	onlyA, onlyB         int // в топ-5 только у A, только у B
+	better, worse, equal int // ранг первого релевантного у A лучше, хуже, равен
+}
+
+// pair сопоставляет строки по id вопроса. Не найденное в топе считается
+// хуже любого ранга; оба не нашли — «равен».
+func pair(a, b []RetrievalRow) pairing {
+	byID := map[string]RetrievalRow{}
+	for _, r := range b {
+		byID[r.ID] = r
+	}
+	key := func(rank int) int {
+		if rank <= 0 {
+			return math.MaxInt
+		}
+		return rank
+	}
+	var p pairing
+	for _, ra := range a {
+		rb, ok := byID[ra.ID]
+		if !ok {
+			continue
+		}
+		p.n++
+		ha, hb := ra.Rank > 0 && ra.Rank <= 5, rb.Rank > 0 && rb.Rank <= 5
+		if ha {
+			p.hitA++
+		}
+		if hb {
+			p.hitB++
+		}
+		switch {
+		case ha && !hb:
+			p.onlyA++
+		case hb && !ha:
+			p.onlyB++
+		}
+		switch ka, kb := key(ra.Rank), key(rb.Rank); {
+		case ka < kb:
+			p.better++
+		case ka > kb:
+			p.worse++
+		default:
+			p.equal++
+		}
+	}
+	return p
+}
+
+// verdict — вывод парного сравнения: «лучше» только при перевесе не меньше
+// NoiseQuestions вопросов по recall@5, иначе — «в пределах шума».
+func (p pairing) verdict(a, b string) string {
+	d := p.onlyA - p.onlyB
+	switch {
+	case d >= NoiseQuestions:
+		return fmt.Sprintf("%s лучше (перевес по recall@5 — %d, порог — %d вопроса)", a, d, NoiseQuestions)
+	case -d >= NoiseQuestions:
+		return fmt.Sprintf("%s лучше (перевес по recall@5 — %d, порог — %d вопроса)", b, -d, NoiseQuestions)
+	}
+	return fmt.Sprintf("разница в пределах шума (перевес по recall@5 — %d, порог — %d вопроса)", abs(d), NoiseQuestions)
+}
+
+// text — парное сравнение словами: ранги и recall@5 по вопросам.
+func (p pairing) text(a, b string) string {
+	return fmt.Sprintf("ранг первого релевантного лучше у %s в %s, у %s — в %d, равен в %d; в топ-5 только у %s — %d, только у %s — %d",
+		a, inQuestions(p.better), b, p.worse, p.equal, a, p.onlyA, b, p.onlyB)
+}
+
+// inQuestions — «в 1 вопросе», «в 7 вопросах».
+func inQuestions(n int) string {
+	if n%10 == 1 && n%100 != 11 {
+		return fmt.Sprintf("%d вопросе", n)
+	}
+	return fmt.Sprintf("%d вопросах", n)
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
 // conclude — вывод числами. Только сравнения, которые следуют из таблиц;
-// кто лучше — решает recall@5, при равенстве — MRR.
+// разница — в вопросах, а не в долях, и «лучше» — только при перевесе
+// парного сравнения по recall@5 не меньше NoiseQuestions вопросов.
 func conclude(r Report, aggs map[string]*agg, splits []string) []string {
 	scope := strings.Join(splits, "+")
 	primary := func(id string) (*agg, Mode) {
@@ -463,37 +629,30 @@ func conclude(r Report, aggs map[string]*agg, splits []string) []string {
 	sS, okS := r.stats(string(Structure))
 	fS, okF := r.stats(string(Fixed))
 	if sA != nil && fA != nil && okS && okF {
-		verdict := "поровну"
-		switch d := sA.recall(5) - fA.recall(5); {
-		case d > 1e-9:
-			verdict = "structure лучше"
-		case d < -1e-9:
-			verdict = "fixed лучше"
-		default:
-			if dm := sA.rr - fA.rr; dm > 1e-9 {
-				verdict = "поровну по recall@5, по MRR structure лучше"
-			} else if dm < -1e-9 {
-				verdict = "поровну по recall@5, по MRR fixed лучше"
-			}
-		}
 		mode := string(sMode)
 		if sMode != fMode {
 			mode = fmt.Sprintf("%s/%s", sMode, fMode)
 		}
-		out = append(out, fmt.Sprintf("structure: recall@1 %.2f, recall@3 %.2f, recall@5 %.2f, MRR %.2f против %.2f, %.2f, %.2f, %.2f у fixed (%s, %d вопросов, поиск %s) — %s.",
-			sA.recall(1), sA.recall(3), sA.recall(5), sA.rr/float64(max(sA.n, 1)),
-			fA.recall(1), fA.recall(3), fA.recall(5), fA.rr/float64(max(fA.n, 1)), scope, sA.n, mode, verdict))
-		out = append(out, fmt.Sprintf("Разорвано доказательств: %.0f %% у structure против %.0f %% у fixed; чанков на стыке разделов %.0f %% против %.0f %%; разрезанных разделов %.0f %% против %.0f %%; оборванных посреди предложения %.0f %% против %.0f %%.",
+		p := pair(sA.rows, fA.rows)
+		out = append(out, fmt.Sprintf("structure: recall@5 %d из %d против %d из %d у fixed (%+d), recall@1 %.2f против %.2f, recall@3 %.2f против %.2f, MRR %.2f против %.2f (%s, поиск %s).",
+			p.hitA, p.n, p.hitB, p.n, p.hitA-p.hitB, sA.recall(1), fA.recall(1), sA.recall(3), fA.recall(3),
+			sA.rr/float64(max(sA.n, 1)), fA.rr/float64(max(fA.n, 1)), scope, mode))
+		out = append(out, fmt.Sprintf("Парно по %d вопросам: %s — %s.", p.n, p.text("structure", "fixed"), p.verdict("structure", "fixed")))
+		out = append(out, fmt.Sprintf("Все доказательства вопроса в топ-5 (recall_all@5): %d из %d у structure против %d из %d у fixed; в бюджете %d токенов — %d против %d (вопросов с несколькими доказательствами %d).",
+			sA.all5, sA.n, fA.all5, fA.n, r.Budget, sA.allBudg, fA.allBudg, sA.multi))
+		out = append(out, fmt.Sprintf("Доказательство целиком в одном чанке: %.0f %% у structure против %.0f %% у fixed (из %d); разорвано (покрыто < %.0f %%) %.0f %% против %.0f %%; чанков на стыке разделов %.0f %% против %.0f %%; разрезанных разделов %.0f %% против %.0f %%; оборванных посреди предложения %.0f %% против %.0f %%.",
+			100*sS.WholeEvidence, 100*fS.WholeEvidence, sS.Evidence, 100*EvidenceCover,
 			100*ratio(sA.broken, sA.ev), 100*ratio(fA.broken, fA.ev), 100*sS.MixedShare, 100*fS.MixedShare,
 			100*sS.SplitSections, 100*fS.SplitSections, 100*sS.MidSentence, 100*fS.MidSentence))
-		out = append(out, fmt.Sprintf("При одинаковом бюджете %d токенов recall %.2f у structure против %.2f у fixed; чанков %d против %d, p50 %d против %d токенов, перекрытие %.0f %% против %.0f %%.",
-			r.Budget, ratio(sA.budget, sA.n), ratio(fA.budget, fA.n), sS.Chunks, fS.Chunks, sS.P50, fS.P50,
+		out = append(out, fmt.Sprintf("При одинаковом бюджете %d токенов первый релевантный нашёлся в %d из %d вопросов у structure против %d из %d у fixed; чанков %d против %d, p50 %d против %d токенов, перекрытие %.0f %% против %.0f %%.",
+			r.Budget, sA.budget, sA.n, fA.budget, fA.n, sS.Chunks, fS.Chunks, sS.P50, fS.P50,
 			100*sS.OverlapShare, 100*fS.OverlapShare))
 		if contains(splits, SplitTest) {
 			st, ft := splitRow(r, string(Structure), sMode, SplitTest), splitRow(r, string(Fixed), fMode, SplitTest)
 			if st != nil && ft != nil {
-				out = append(out, fmt.Sprintf("На test (%d вопросов с доказательствами): recall@5 %.2f у structure против %.2f у fixed, MRR %.2f против %.2f.",
-					st.N, st.Recall[5], ft.Recall[5], st.MRR, ft.MRR))
+				pt := pair(st.Rows, ft.Rows)
+				out = append(out, fmt.Sprintf("На test (вопросов с доказательствами: %d): recall@5 %d против %d, MRR %.2f против %.2f — на такой выборке это иллюстрация, не вывод.",
+					st.N, pt.hitA, pt.hitB, st.MRR, ft.MRR))
 			}
 		}
 	} else {
@@ -502,18 +661,21 @@ func conclude(r Report, aggs map[string]*agg, splits []string) []string {
 			if a == nil {
 				continue
 			}
-			out = append(out, fmt.Sprintf("%s: recall@1 %.2f, recall@3 %.2f, recall@5 %.2f, MRR %.2f (%s, %d вопросов, поиск %s); разорвано доказательств %.0f %%, чанков на стыке разделов %.0f %%.",
-				s.Index, a.recall(1), a.recall(3), a.recall(5), a.rr/float64(max(a.n, 1)), scope, a.n, mode,
-				100*ratio(a.broken, a.ev), 100*s.MixedShare))
+			p := pair(a.rows, a.rows)
+			out = append(out, fmt.Sprintf("%s: recall@5 %d из %d%s, MRR %.2f, все доказательства в топ-5 — %d из %d (%s, поиск %s); доказательство целиком в одном чанке %.0f %%, чанков на стыке разделов %.0f %%.",
+				s.Index, p.hitA, p.n, a.recallText(), a.rr/float64(max(a.n, 1)), a.all5, a.n, scope, mode,
+				100*s.WholeEvidence, 100*s.MixedShare))
 		}
 	}
-	// Справочная строка: что дают эмбеддинги поверх BM25.
+	// Справочно: что дают эмбеддинги поверх BM25 — тем же парным
+	// сравнением и тем же порогом шума.
 	var parts []string
 	for _, s := range r.Stats {
 		d, b := aggs[s.Index+"/"+string(Dense)], aggs[s.Index+"/"+string(BM25)]
 		if d != nil && b != nil {
-			parts = append(parts, fmt.Sprintf("%s — recall@5 %.2f у BM25 против %.2f у dense (%+.2f)",
-				s.Index, b.recall(5), d.recall(5), d.recall(5)-b.recall(5)))
+			p := pair(d.rows, b.rows)
+			parts = append(parts, fmt.Sprintf("%s — recall@5 %d из %d у dense против %d из %d у BM25 (%+d); %s — %s",
+				s.Index, p.hitA, p.n, p.hitB, p.n, p.hitA-p.hitB, p.text("dense", "BM25"), p.verdict("dense", "BM25")))
 		}
 	}
 	if len(parts) > 0 {
@@ -563,27 +725,29 @@ func (r Report) Markdown() string {
 	p("- Корпус: `corpus_sha` `%s`, документов %d, страниц %.1f\n", r.CorpusSHA, r.Docs, r.Pages)
 	p("- Эмбеддер: %s\n", r.Embedder)
 	p("- Дата: %s\n", r.Created.Format("2006-01-02 15:04 MST"))
-	p("- Релевантность: чанк того же документа покрывает ≥ %.0f %% фрагмента-доказательства; бюджет топа — %d токенов\n\n", 100*EvidenceCover, r.Budget)
+	p("- Релевантность: чанк того же документа покрывает ≥ %.0f %% фрагмента-доказательства; бюджет топа — %d токенов\n", 100*EvidenceCover, r.Budget)
+	p("- «Лучше» в выводе — только при перевесе ≥ %d вопросов в парном сравнении по recall@5; меньше — «в пределах шума»\n\n", NoiseQuestions)
 
 	p("## Структура индексов\n\n")
-	p("| Индекс | Параметры | Эмбеддер | Чанков | Токенов | p50 | p95 | На стыке разделов | Разрезано разделов | Перекрытие | Оборвано посреди предложения | Сборка, с | Размер, КБ |\n")
-	p("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
+	p("| Индекс | Параметры | Эмбеддер | Чанков | Токенов | p50 | p95 | На стыке разделов | Разрезано разделов | Перекрытие | Оборвано посреди предложения | Доказательство целиком в одном чанке | Сборка, с | Размер, КБ |\n")
+	p("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
 	for _, s := range r.Stats {
-		p("| %s | %s | %s | %d | %d | %d | %d | %s | %s | %s | %s | %.1f | %d |\n", s.Index, paramsText(s.Params),
+		p("| %s | %s | %s | %d | %d | %d | %d | %s | %s | %s | %s | %s из %d | %.1f | %d |\n", s.Index, paramsText(s.Params),
 			orDash(s.Embedder), s.Chunks, s.Tokens, s.P50, s.P95, pct(s.MixedShare), pct(s.SplitSections),
-			pct(s.OverlapShare), pct(s.MidSentence), s.BuildSeconds, s.Bytes/1024)
+			pct(s.OverlapShare), pct(s.MidSentence), pct(s.WholeEvidence), s.Evidence, s.BuildSeconds, s.Bytes/1024)
 	}
 
 	p("\n## Поиск\n\n")
-	p("| Индекс | Режим | Набор | Вопросов | Разорвано доказательств | recall@1 | recall@3 | recall@5 | MRR | recall при %d ток. |\n", r.Budget)
-	p("|---|---|---|---:|---:|---:|---:|---:|---:|---:|\n")
+	p("recall_all@5 — все доказательства вопроса в топ-5; «все в бюджете» — все в чанках топа, влезающих в %d токенов.\n\n", r.Budget)
+	p("| Индекс | Режим | Набор | Вопросов (многофактных) | Разорвано доказательств | recall@1 | recall@3 | recall@5 | MRR | recall при %d ток. | recall_all@5 | все в бюджете |\n", r.Budget)
+	p("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
 	for _, x := range r.Retrieval {
 		mode := string(x.Mode)
 		if x.Fallback != "" {
 			mode += " (откат)"
 		}
-		p("| %s | %s | %s | %d | %s | %.2f | %.2f | %.2f | %.2f | %.2f |\n", x.Index, mode, x.Split, x.N,
-			pct(x.BrokenEvidence), x.Recall[1], x.Recall[3], x.Recall[5], x.MRR, x.RecallBudget)
+		p("| %s | %s | %s | %d (%d) | %s | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f |\n", x.Index, mode, x.Split, x.N, x.Multi,
+			pct(x.BrokenEvidence), x.Recall[1], x.Recall[3], x.Recall[5], x.MRR, x.RecallBudget, x.RecallAll5, x.RecallAllBudget)
 	}
 
 	// По вопросам test: ранг первого релевантного в каждом индексе и режиме.

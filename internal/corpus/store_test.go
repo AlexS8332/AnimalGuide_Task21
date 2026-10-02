@@ -27,7 +27,7 @@ func sampleDocs() []Doc {
 		{
 			Schema: Schema, ID: MDDDocID, Source: SourceMDD, Title: MDDTitle,
 			URL: "https://www.mammaldiversity.org", Fetched: "2026-09-25T07:13:29Z", License: LicenseMDD,
-			Intro:    "Вступление MDD.",
+			Intro:    "Этот документ собран по релизу MDD v2.5 от 2026-07-28 (предыдущий релиз — v2.4).",
 			Sections: []Section{{Path: []string{"Семейства хищных"}, Title: "Семейства хищных", Level: 2, Text: "Кошачьи (Felidae) — 46 видов."}},
 		},
 	}
@@ -229,7 +229,7 @@ func TestWriteLicense(t *testing.T) {
 	for _, want := range []string{
 		"CC BY-SA 4.0", "CC BY 4.0", "«Манул»",
 		"https://ru.wikipedia.org/w/index.php?oldid=42", "ревизия 42",
-		"https://www.mammaldiversity.org",
+		"https://www.mammaldiversity.org, релиз MDD v2.5 от 2026-07-28, данные от 2026-09-25T07:13:29Z",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("в LICENSE.md нет %q:\n%s", want, s)

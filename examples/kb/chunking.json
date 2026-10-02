@@ -1,5 +1,5 @@
 {
-  "created": "2026-10-02T13:49:34.8078153Z",
+  "created": "2026-10-02T14:24:58.4352033Z",
   "corpus_sha": "7b926f7a18d0bff5fcd783e558234cb92c4530846be1bac338e99bc07491dcea",
   "docs": 31,
   "pages": 350.5,
@@ -22,7 +22,9 @@
       "split_sections": 0.47101449275362317,
       "overlap_share": 0,
       "mid_sentence": 0,
-      "build_seconds": 243.1424485,
+      "whole_evidence": 1,
+      "evidence": 30,
+      "build_seconds": 0.487266,
       "bytes": 4643834
     },
     {
@@ -41,8 +43,10 @@
       "split_sections": 0.7198067632850241,
       "overlap_share": 0.14483125094043187,
       "mid_sentence": 0.9875565610859729,
-      "build_seconds": 209.6506295,
-      "bytes": 5400395
+      "whole_evidence": 0.9666666666666667,
+      "evidence": 30,
+      "build_seconds": 83.4127937,
+      "bytes": 5401504
     }
   ],
   "retrieval": [
@@ -59,11 +63,15 @@
       },
       "mrr": 0.677469135802469,
       "recall_budget": 0.8333333333333334,
+      "recall_all@5": 0.8333333333333334,
+      "recall_all_budget": 0.8333333333333334,
+      "multi": 1,
       "rows": [
         {
           "id": "D01",
           "q": "Какой длины нора у корсака?",
           "rank": 1,
+          "all5": true,
           "top": [
             "corsac/structure/003",
             "badger/structure/019",
@@ -77,6 +85,7 @@
           "id": "D02",
           "q": "С какой скоростью может бежать степная лисица?",
           "rank": 9,
+          "all5": false,
           "top": [
             "corsac/structure/000",
             "otter/structure/018",
@@ -90,6 +99,7 @@
           "id": "D03",
           "q": "Какую площадь занимает домашний участок барханного кота?",
           "rank": 1,
+          "all5": true,
           "top": [
             "sand-cat/structure/004",
             "sand-cat/structure/007",
@@ -103,6 +113,7 @@
           "id": "D04",
           "q": "До какого возраста доживают барханные кошки в неволе?",
           "rank": 1,
+          "all5": true,
           "top": [
             "sand-cat/structure/006",
             "sand-cat/structure/004",
@@ -116,6 +127,7 @@
           "id": "D05",
           "q": "Почему беременность у перевязки длится так долго и сколько именно?",
           "rank": 1,
+          "all5": true,
           "top": [
             "marbled-polecat/structure/008",
             "marbled-polecat/structure/006",
@@ -129,6 +141,7 @@
           "id": "D06",
           "q": "Сколько весит взрослая перегузна?",
           "rank": 2,
+          "all5": true,
           "top": [
             "marbled-polecat/structure/000",
             "marbled-polecat/structure/002",
@@ -142,6 +155,7 @@
           "id": "D07",
           "q": "Сколько видов кошачьих признаёт MDD v2.5?",
           "rank": 3,
+          "all5": true,
           "top": [
             "mdd-carnivora/structure/000",
             "felidae/structure/010",
@@ -155,6 +169,7 @@
           "id": "D08",
           "q": "Какой охранный статус МСОП у американского красного волка Canis rufus по MDD v2.5?",
           "rank": 4,
+          "all5": true,
           "top": [
             "dhole/structure/000",
             "dhole/structure/011",
@@ -168,6 +183,7 @@
           "id": "D09",
           "q": "Сколько зубов у красного волка и чем его зубная система отличается от других псовых?",
           "rank": 1,
+          "all5": true,
           "top": [
             "dhole/structure/001",
             "canidae/structure/006",
@@ -181,6 +197,7 @@
           "id": "D10",
           "q": "На какое расстояние прыгает харза, перескакивая с дерева на дерево?",
           "rank": 1,
+          "all5": true,
           "top": [
             "yellow-throated-marten/structure/007",
             "yellow-throated-marten/structure/005",
@@ -194,6 +211,7 @@
           "id": "D11",
           "q": "Какую долю рациона харзы в Сихотэ-Алинском заповеднике составляют копытные?",
           "rank": 1,
+          "all5": true,
           "top": [
             "yellow-throated-marten/structure/007",
             "yellow-throated-marten/structure/006",
@@ -207,6 +225,7 @@
           "id": "D12",
           "q": "Сколько хромосом у палласова кота?",
           "rank": 1,
+          "all5": true,
           "top": [
             "manul/structure/026",
             "manul/structure/000",
@@ -220,6 +239,7 @@
           "id": "D13",
           "q": "На какой максимальной высоте зарегистрирован манул?",
           "rank": 1,
+          "all5": true,
           "top": [
             "manul/structure/011",
             "manul/structure/000",
@@ -233,6 +253,7 @@
           "id": "D14",
           "q": "Во сколько раз может меняться численность солонгоя в Забайкалье?",
           "rank": 2,
+          "all5": true,
           "top": [
             "mountain-weasel/structure/006",
             "mountain-weasel/structure/012",
@@ -246,6 +267,7 @@
           "id": "D15",
           "q": "А на какое расстояние он прыгает, когда охотится?",
           "rank": 2,
+          "all5": true,
           "top": [
             "caracal/structure/001",
             "caracal/structure/003",
@@ -259,6 +281,7 @@
           "id": "D16",
           "q": "А сколько их всего осталось?",
           "rank": 1,
+          "all5": true,
           "top": [
             "manul/structure/022",
             "manul/structure/001",
@@ -272,6 +295,7 @@
           "id": "D17",
           "q": "Сколько хаусов обитает на территории России?",
           "rank": 0,
+          "all5": false,
           "top": [
             "jungle-cat/structure/000",
             "snow-leopard/structure/033",
@@ -285,6 +309,7 @@
           "id": "D18",
           "q": "Сколько снежных леопардов оставалось в дикой природе в 2020 году по оценке WWF?",
           "rank": 0,
+          "all5": false,
           "top": [
             "amur-leopard/structure/049",
             "snow-leopard/structure/001",
@@ -309,11 +334,15 @@
       },
       "mrr": 0.540625,
       "recall_budget": 0.875,
+      "recall_all@5": 0.625,
+      "recall_all_budget": 0.75,
+      "multi": 3,
       "rows": [
         {
           "id": "T01",
           "q": "Какую памятную монету Банк России выпустил в честь перевязки, когда и каким тиражом?",
           "rank": 1,
+          "all5": true,
           "top": [
             "marbled-polecat/structure/010",
             "otter/structure/054",
@@ -327,6 +356,7 @@
           "id": "T02",
           "q": "Какова суточная норма пищи взрослого самца солонгоя?",
           "rank": 1,
+          "all5": true,
           "top": [
             "mountain-weasel/structure/012",
             "mountain-weasel/structure/002",
@@ -340,6 +370,7 @@
           "id": "T03",
           "q": "Сколько видов малых (красных) панд признаёт MDD v2.5?",
           "rank": 8,
+          "all5": false,
           "top": [
             "red-panda/structure/010",
             "red-panda/structure/009",
@@ -353,6 +384,7 @@
           "id": "T04",
           "q": "Какое расстояние обычно длится погоня красного волка за добычей и с какой скоростью он бежит?",
           "rank": 1,
+          "all5": true,
           "top": [
             "dhole/structure/008",
             "dhole/structure/009",
@@ -366,6 +398,7 @@
           "id": "T05",
           "q": "У кого беременность длится дольше — у каракала или у камышового кота, и насколько?",
           "rank": 2,
+          "all5": true,
           "top": [
             "felidae/structure/012",
             "jungle-cat/structure/002",
@@ -379,6 +412,7 @@
           "id": "T06",
           "q": "Какой статус МСОП указан в MDD v2.5 у кошки, которую в Индии называют «гепардом для бедных»?",
           "rank": 2,
+          "all5": false,
           "top": [
             "mdd-carnivora/structure/003",
             "mdd-carnivora/structure/002",
@@ -392,6 +426,7 @@
           "id": "T07",
           "q": "Сколько часов в день кошачий медведь тратит на еду?",
           "rank": 0,
+          "all5": false,
           "top": [
             "polar-bear/structure/011",
             "brown-bear/structure/020",
@@ -405,6 +440,7 @@
           "id": "T08",
           "q": "А сколько она весит?",
           "rank": 5,
+          "all5": true,
           "top": [
             "yellow-throated-marten/structure/004",
             "yellow-throated-marten/structure/005",
@@ -427,13 +463,17 @@
         "3": 0.8333333333333334,
         "5": 0.8333333333333334
       },
-      "mrr": 0.6450617283950617,
+      "mrr": 0.6444444444444444,
       "recall_budget": 0.8333333333333334,
+      "recall_all@5": 0.7777777777777778,
+      "recall_all_budget": 0.7777777777777778,
+      "multi": 1,
       "rows": [
         {
           "id": "D01",
           "q": "Какой длины нора у корсака?",
           "rank": 1,
+          "all5": true,
           "top": [
             "corsac/structure/003",
             "corsac/structure/001",
@@ -447,6 +487,7 @@
           "id": "D02",
           "q": "С какой скоростью может бежать степная лисица?",
           "rank": 3,
+          "all5": true,
           "top": [
             "caracal/structure/003",
             "corsac/structure/000",
@@ -454,12 +495,13 @@
             "badger/structure/039",
             "otter/structure/018"
           ],
-          "score": 0.7449410152282673
+          "score": 0.7478314424275218
         },
         {
           "id": "D03",
           "q": "Какую площадь занимает домашний участок барханного кота?",
           "rank": 1,
+          "all5": true,
           "top": [
             "sand-cat/structure/004",
             "sand-cat/structure/001",
@@ -473,6 +515,7 @@
           "id": "D04",
           "q": "До какого возраста доживают барханные кошки в неволе?",
           "rank": 1,
+          "all5": true,
           "top": [
             "sand-cat/structure/006",
             "sand-cat/structure/000",
@@ -486,12 +529,13 @@
           "id": "D05",
           "q": "Почему беременность у перевязки длится так долго и сколько именно?",
           "rank": 1,
+          "all5": true,
           "top": [
             "marbled-polecat/structure/008",
             "brown-bear/structure/024",
             "marbled-polecat/structure/001",
-            "marbled-polecat/structure/005",
-            "manul/structure/017"
+            "manul/structure/017",
+            "marbled-polecat/structure/005"
           ],
           "score": 1
         },
@@ -499,12 +543,13 @@
           "id": "D06",
           "q": "Сколько весит взрослая перегузна?",
           "rank": 0,
+          "all5": false,
           "top": [
             "marbled-polecat/structure/001",
             "marbled-polecat/structure/000",
-            "marbled-polecat/structure/010",
             "wolverine/structure/014",
-            "brown-bear/structure/007"
+            "brown-bear/structure/007",
+            "marbled-polecat/structure/010"
           ],
           "score": 1
         },
@@ -512,6 +557,7 @@
           "id": "D07",
           "q": "Сколько видов кошачьих признаёт MDD v2.5?",
           "rank": 3,
+          "all5": true,
           "top": [
             "mdd-carnivora/structure/001",
             "mdd-carnivora/structure/000",
@@ -519,17 +565,18 @@
             "felidae/structure/002",
             "manul/structure/007"
           ],
-          "score": 0.8702831553840525
+          "score": 0.8664624823706151
         },
         {
           "id": "D08",
           "q": "Какой охранный статус МСОП у американского красного волка Canis rufus по MDD v2.5?",
           "rank": 1,
+          "all5": true,
           "top": [
             "mdd-carnivora/structure/006",
             "canidae/structure/005",
-            "mdd-carnivora/structure/000",
             "wolf/structure/005",
+            "mdd-carnivora/structure/000",
             "dhole/structure/011"
           ],
           "score": 1
@@ -538,6 +585,7 @@
           "id": "D09",
           "q": "Сколько зубов у красного волка и чем его зубная система отличается от других псовых?",
           "rank": 2,
+          "all5": true,
           "top": [
             "canidae/structure/006",
             "dhole/structure/001",
@@ -545,12 +593,13 @@
             "badger/structure/013",
             "canidae/structure/004"
           ],
-          "score": 0.9162678466452995
+          "score": 0.9069154807578811
         },
         {
           "id": "D10",
           "q": "На какое расстояние прыгает харза, перескакивая с дерева на дерево?",
           "rank": 2,
+          "all5": true,
           "top": [
             "lynx/structure/018",
             "yellow-throated-marten/structure/007",
@@ -558,12 +607,13 @@
             "dhole/structure/007",
             "yellow-throated-marten/structure/011"
           ],
-          "score": 0.9539665349875095
+          "score": 0.974208714240427
         },
         {
           "id": "D11",
           "q": "Какую долю рациона харзы в Сихотэ-Алинском заповеднике составляют копытные?",
           "rank": 1,
+          "all5": true,
           "top": [
             "yellow-throated-marten/structure/007",
             "amur-leopard/structure/042",
@@ -576,7 +626,8 @@
         {
           "id": "D12",
           "q": "Сколько хромосом у палласова кота?",
-          "rank": 9,
+          "rank": 10,
+          "all5": false,
           "top": [
             "wildcat/structure/001",
             "manul/structure/000",
@@ -584,12 +635,13 @@
             "raccoon-dog/structure/016",
             "mountain-weasel/structure/004"
           ],
-          "score": 0.5633714022723117
+          "score": 0.5556204916925707
         },
         {
           "id": "D13",
           "q": "На какой максимальной высоте зарегистрирован манул?",
           "rank": 1,
+          "all5": true,
           "top": [
             "manul/structure/011",
             "manul/structure/008",
@@ -603,6 +655,7 @@
           "id": "D14",
           "q": "Во сколько раз может меняться численность солонгоя в Забайкалье?",
           "rank": 1,
+          "all5": true,
           "top": [
             "mountain-weasel/structure/012",
             "mountain-weasel/structure/009",
@@ -616,6 +669,7 @@
           "id": "D15",
           "q": "А на какое расстояние он прыгает, когда охотится?",
           "rank": 3,
+          "all5": true,
           "top": [
             "dhole/structure/007",
             "lynx/structure/018",
@@ -623,12 +677,13 @@
             "caracal/structure/005",
             "caracal/structure/007"
           ],
-          "score": 0.7968246854361851
+          "score": 0.7914140630754007
         },
         {
           "id": "D16",
           "q": "А сколько их всего осталось?",
           "rank": 1,
+          "all5": false,
           "top": [
             "manul/structure/022",
             "red-panda/structure/011",
@@ -642,6 +697,7 @@
           "id": "D17",
           "q": "Сколько хаусов обитает на территории России?",
           "rank": 0,
+          "all5": false,
           "top": [
             "jungle-cat/structure/002",
             "jungle-cat/structure/000",
@@ -655,6 +711,7 @@
           "id": "D18",
           "q": "Сколько снежных леопардов оставалось в дикой природе в 2020 году по оценке WWF?",
           "rank": 2,
+          "all5": true,
           "top": [
             "snow-leopard/structure/042",
             "snow-leopard/structure/029",
@@ -662,7 +719,7 @@
             "amur-leopard/structure/067",
             "snow-leopard/structure/001"
           ],
-          "score": 0.9128299573969962
+          "score": 0.912180599945371
         }
       ]
     },
@@ -675,15 +732,19 @@
       "recall": {
         "1": 0.75,
         "3": 0.75,
-        "5": 0.875
+        "5": 0.75
       },
-      "mrr": 0.790625,
+      "mrr": 0.7864583333333333,
       "recall_budget": 0.875,
+      "recall_all@5": 0.625,
+      "recall_all_budget": 0.75,
+      "multi": 3,
       "rows": [
         {
           "id": "T01",
           "q": "Какую памятную монету Банк России выпустил в честь перевязки, когда и каким тиражом?",
           "rank": 1,
+          "all5": true,
           "top": [
             "marbled-polecat/structure/010",
             "amur-leopard/structure/073",
@@ -697,6 +758,7 @@
           "id": "T02",
           "q": "Какова суточная норма пищи взрослого самца солонгоя?",
           "rank": 1,
+          "all5": true,
           "top": [
             "mountain-weasel/structure/012",
             "lynx/structure/019",
@@ -709,20 +771,22 @@
         {
           "id": "T03",
           "q": "Сколько видов малых (красных) панд признаёт MDD v2.5?",
-          "rank": 5,
+          "rank": 6,
+          "all5": false,
           "top": [
             "red-panda/structure/008",
             "red-panda/structure/009",
             "red-panda/structure/005",
             "red-panda/structure/002",
-            "mdd-carnivora/structure/019"
+            "felidae/structure/002"
           ],
-          "score": 0.8118294789839525
+          "score": 0.7991543910171791
         },
         {
           "id": "T04",
           "q": "Какое расстояние обычно длится погоня красного волка за добычей и с какой скоростью он бежит?",
           "rank": 1,
+          "all5": true,
           "top": [
             "dhole/structure/008",
             "wolf/structure/020",
@@ -736,6 +800,7 @@
           "id": "T05",
           "q": "У кого беременность длится дольше — у каракала или у камышового кота, и насколько?",
           "rank": 1,
+          "all5": true,
           "top": [
             "jungle-cat/structure/002",
             "jungle-cat/structure/000",
@@ -749,12 +814,13 @@
           "id": "T06",
           "q": "Какой статус МСОП указан в MDD v2.5 у кошки, которую в Индии называют «гепардом для бедных»?",
           "rank": 1,
+          "all5": false,
           "top": [
             "caracal/structure/005",
             "dhole/structure/011",
             "mdd-carnivora/structure/000",
-            "felidae/structure/009",
-            "mdd-carnivora/structure/020"
+            "mdd-carnivora/structure/020",
+            "felidae/structure/009"
           ],
           "score": 1
         },
@@ -762,6 +828,7 @@
           "id": "T07",
           "q": "Сколько часов в день кошачий медведь тратит на еду?",
           "rank": 1,
+          "all5": true,
           "top": [
             "red-panda/structure/005",
             "polar-bear/structure/021",
@@ -775,6 +842,7 @@
           "id": "T08",
           "q": "А сколько она весит?",
           "rank": 8,
+          "all5": false,
           "top": [
             "yellow-throated-marten/structure/004",
             "yellow-throated-marten/structure/011",
@@ -782,7 +850,7 @@
             "yellow-throated-marten/structure/007",
             "yellow-throated-marten/structure/010"
           ],
-          "score": 0.7532793387879316
+          "score": 0.7451870284538548
         }
       ]
     },
@@ -793,17 +861,21 @@
       "n": 18,
       "broken_evidence": 0,
       "recall": {
-        "1": 0.3888888888888889,
+        "1": 0.4444444444444444,
         "3": 0.7222222222222222,
         "5": 0.7777777777777778
       },
-      "mrr": 0.5419753086419754,
+      "mrr": 0.5884531590413943,
       "recall_budget": 0.7777777777777778,
+      "recall_all@5": 0.7222222222222222,
+      "recall_all_budget": 0.7222222222222222,
+      "multi": 1,
       "rows": [
         {
           "id": "D01",
           "q": "Какой длины нора у корсака?",
           "rank": 2,
+          "all5": true,
           "top": [
             "corsac/fixed/002",
             "corsac/fixed/003",
@@ -816,10 +888,11 @@
         {
           "id": "D02",
           "q": "С какой скоростью может бежать степная лисица?",
-          "rank": 18,
+          "rank": 17,
+          "all5": false,
           "top": [
-            "corsac/fixed/000",
             "badger/fixed/047",
+            "corsac/fixed/000",
             "arctic-fox/fixed/000",
             "wildcat/fixed/011",
             "arctic-fox/fixed/008"
@@ -830,12 +903,13 @@
           "id": "D03",
           "q": "Какую площадь занимает домашний участок барханного кота?",
           "rank": 2,
+          "all5": true,
           "top": [
             "sand-cat/fixed/000",
             "sand-cat/fixed/004",
             "sand-cat/fixed/001",
-            "sand-cat/fixed/003",
-            "sand-cat/fixed/006"
+            "sand-cat/fixed/006",
+            "sand-cat/fixed/003"
           ],
           "score": 0.854381263256073
         },
@@ -843,6 +917,7 @@
           "id": "D04",
           "q": "До какого возраста доживают барханные кошки в неволе?",
           "rank": 1,
+          "all5": true,
           "top": [
             "sand-cat/fixed/005",
             "sand-cat/fixed/006",
@@ -850,25 +925,27 @@
             "sand-cat/fixed/003",
             "sand-cat/fixed/000"
           ],
-          "score": 0.9103281497955322
+          "score": 0.9014973640441895
         },
         {
           "id": "D05",
           "q": "Почему беременность у перевязки длится так долго и сколько именно?",
           "rank": 1,
+          "all5": true,
           "top": [
             "marbled-polecat/fixed/006",
             "marbled-polecat/fixed/007",
             "marbled-polecat/fixed/005",
             "felidae/fixed/010",
-            "marbled-polecat/fixed/003"
+            "marbled-polecat/fixed/002"
           ],
-          "score": 0.8804824352264404
+          "score": 0.880425214767456
         },
         {
           "id": "D06",
           "q": "Сколько весит взрослая перегузна?",
           "rank": 5,
+          "all5": true,
           "top": [
             "marbled-polecat/fixed/000",
             "badger/fixed/006",
@@ -881,26 +958,28 @@
         {
           "id": "D07",
           "q": "Сколько видов кошачьих признаёт MDD v2.5?",
-          "rank": 3,
+          "rank": 2,
+          "all5": true,
           "top": [
             "mdd-carnivora/fixed/000",
-            "felidae/fixed/004",
             "mdd-carnivora/fixed/002",
-            "felidae/fixed/009",
-            "mdd-carnivora/fixed/001"
+            "felidae/fixed/004",
+            "mdd-carnivora/fixed/001",
+            "felidae/fixed/008"
           ],
-          "score": 0.8389080762863159
+          "score": 0.8421080112457275
         },
         {
           "id": "D08",
           "q": "Какой охранный статус МСОП у американского красного волка Canis rufus по MDD v2.5?",
           "rank": 3,
+          "all5": true,
           "top": [
             "dhole/fixed/013",
             "dhole/fixed/011",
             "mdd-carnivora/fixed/009",
             "manul/fixed/025",
-            "dhole/fixed/000"
+            "dhole/fixed/010"
           ],
           "score": 0.8419603109359741
         },
@@ -908,6 +987,7 @@
           "id": "D09",
           "q": "Сколько зубов у красного волка и чем его зубная система отличается от других псовых?",
           "rank": 1,
+          "all5": true,
           "top": [
             "dhole/fixed/001",
             "canidae/fixed/007",
@@ -921,11 +1001,12 @@
           "id": "D10",
           "q": "На какое расстояние прыгает харза, перескакивая с дерева на дерево?",
           "rank": 1,
+          "all5": true,
           "top": [
             "yellow-throated-marten/fixed/007",
             "yellow-throated-marten/fixed/003",
-            "yellow-throated-marten/fixed/004",
             "yellow-throated-marten/fixed/005",
+            "yellow-throated-marten/fixed/001",
             "yellow-throated-marten/fixed/000"
           ],
           "score": 0.8442249894142151
@@ -934,12 +1015,13 @@
           "id": "D11",
           "q": "Какую долю рациона харзы в Сихотэ-Алинском заповеднике составляют копытные?",
           "rank": 1,
+          "all5": true,
           "top": [
             "yellow-throated-marten/fixed/006",
             "yellow-throated-marten/fixed/005",
             "otter/fixed/025",
             "yellow-throated-marten/fixed/004",
-            "yellow-throated-marten/fixed/011"
+            "amur-leopard/fixed/021"
           ],
           "score": 0.8781120181083679
         },
@@ -947,51 +1029,55 @@
           "id": "D12",
           "q": "Сколько хромосом у палласова кота?",
           "rank": 0,
+          "all5": false,
           "top": [
             "manul/fixed/000",
             "wildcat/fixed/002",
+            "manul/fixed/028",
             "canidae/fixed/001",
-            "canidae/fixed/005",
-            "jungle-cat/fixed/003"
+            "canidae/fixed/005"
           ],
           "score": 0.8147804737091064
         },
         {
           "id": "D13",
           "q": "На какой максимальной высоте зарегистрирован манул?",
-          "rank": 3,
+          "rank": 2,
+          "all5": true,
           "top": [
             "manul/fixed/000",
-            "manul/fixed/002",
             "manul/fixed/013",
+            "manul/fixed/002",
             "manul/fixed/016",
             "manul/fixed/012"
           ],
-          "score": 0.8447874188423157
+          "score": 0.8486909866333008
         },
         {
           "id": "D14",
           "q": "Во сколько раз может меняться численность солонгоя в Забайкалье?",
           "rank": 1,
+          "all5": true,
           "top": [
             "mountain-weasel/fixed/010",
             "mountain-weasel/fixed/004",
             "mountain-weasel/fixed/009",
-            "mountain-weasel/fixed/008",
-            "mountain-weasel/fixed/000"
+            "mountain-weasel/fixed/000",
+            "mountain-weasel/fixed/008"
           ],
           "score": 0.8506900668144226
         },
         {
           "id": "D15",
           "q": "А на какое расстояние он прыгает, когда охотится?",
-          "rank": 2,
+          "rank": 1,
+          "all5": true,
           "top": [
-            "caracal/fixed/004",
             "caracal/fixed/003",
             "caracal/fixed/000",
+            "caracal/fixed/004",
             "caracal/fixed/005",
-            "caracal/fixed/002"
+            "caracal/fixed/001"
           ],
           "score": 0.8594775199890137
         },
@@ -999,12 +1085,13 @@
           "id": "D16",
           "q": "А сколько их всего осталось?",
           "rank": 1,
+          "all5": false,
           "top": [
             "manul/fixed/025",
             "manul/fixed/002",
             "manul/fixed/026",
             "manul/fixed/027",
-            "manul/fixed/012"
+            "manul/fixed/024"
           ],
           "score": 0.885854959487915
         },
@@ -1012,12 +1099,13 @@
           "id": "D17",
           "q": "Сколько хаусов обитает на территории России?",
           "rank": 0,
+          "all5": false,
           "top": [
             "jungle-cat/fixed/000",
             "badger/fixed/059",
             "snow-leopard/fixed/039",
             "lynx/fixed/030",
-            "mustelidae/fixed/003"
+            "yellow-throated-marten/fixed/003"
           ],
           "score": 0.8168525695800781
         },
@@ -1025,12 +1113,13 @@
           "id": "D18",
           "q": "Сколько снежных леопардов оставалось в дикой природе в 2020 году по оценке WWF?",
           "rank": 0,
+          "all5": false,
           "top": [
             "amur-leopard/fixed/060",
             "snow-leopard/fixed/001",
             "snow-leopard/fixed/000",
-            "amur-leopard/fixed/063",
-            "amur-leopard/fixed/061"
+            "amur-leopard/fixed/061",
+            "amur-leopard/fixed/063"
           ],
           "score": 0.8172759413719177
         }
@@ -1047,18 +1136,22 @@
         "3": 0.625,
         "5": 0.625
       },
-      "mrr": 0.4977106227106227,
+      "mrr": 0.5066391941391941,
       "recall_budget": 0.625,
+      "recall_all@5": 0.625,
+      "recall_all_budget": 0.625,
+      "multi": 3,
       "rows": [
         {
           "id": "T01",
           "q": "Какую памятную монету Банк России выпустил в честь перевязки, когда и каким тиражом?",
           "rank": 1,
+          "all5": true,
           "top": [
             "marbled-polecat/fixed/008",
             "polar-bear/fixed/035",
-            "polar-bear/fixed/034",
             "amur-leopard/fixed/086",
+            "polar-bear/fixed/034",
             "snow-leopard/fixed/047"
           ],
           "score": 0.8385155200958252
@@ -1067,6 +1160,7 @@
           "id": "T02",
           "q": "Какова суточная норма пищи взрослого самца солонгоя?",
           "rank": 2,
+          "all5": true,
           "top": [
             "mountain-weasel/fixed/009",
             "mountain-weasel/fixed/010",
@@ -1079,7 +1173,8 @@
         {
           "id": "T03",
           "q": "Сколько видов малых (красных) панд признаёт MDD v2.5?",
-          "rank": 14,
+          "rank": 13,
+          "all5": false,
           "top": [
             "red-panda/fixed/009",
             "red-panda/fixed/010",
@@ -1093,6 +1188,7 @@
           "id": "T04",
           "q": "Какое расстояние обычно длится погоня красного волка за добычей и с какой скоростью он бежит?",
           "rank": 1,
+          "all5": true,
           "top": [
             "dhole/fixed/008",
             "dhole/fixed/007",
@@ -1106,6 +1202,7 @@
           "id": "T05",
           "q": "У кого беременность длится дольше — у каракала или у камышового кота, и насколько?",
           "rank": 1,
+          "all5": true,
           "top": [
             "jungle-cat/fixed/002",
             "felidae/fixed/010",
@@ -1118,7 +1215,8 @@
         {
           "id": "T06",
           "q": "Какой статус МСОП указан в MDD v2.5 у кошки, которую в Индии называют «гепардом для бедных»?",
-          "rank": 13,
+          "rank": 7,
+          "all5": false,
           "top": [
             "manul/fixed/025",
             "mdd-carnivora/fixed/039",
@@ -1126,18 +1224,19 @@
             "mdd-carnivora/fixed/004",
             "mdd-carnivora/fixed/022"
           ],
-          "score": 0.8038012385368347
+          "score": 0.8080462217330933
         },
         {
           "id": "T07",
           "q": "Сколько часов в день кошачий медведь тратит на еду?",
           "rank": 0,
+          "all5": false,
           "top": [
             "brown-bear/fixed/028",
             "brown-bear/fixed/016",
             "brown-bear/fixed/026",
-            "brown-bear/fixed/030",
-            "brown-bear/fixed/027"
+            "brown-bear/fixed/027",
+            "brown-bear/fixed/020"
           ],
           "score": 0.8497761487960815
         },
@@ -1145,14 +1244,15 @@
           "id": "T08",
           "q": "А сколько она весит?",
           "rank": 3,
+          "all5": true,
           "top": [
             "yellow-throated-marten/fixed/003",
             "yellow-throated-marten/fixed/004",
             "yellow-throated-marten/fixed/000",
-            "yellow-throated-marten/fixed/011",
-            "yellow-throated-marten/fixed/001"
+            "yellow-throated-marten/fixed/001",
+            "yellow-throated-marten/fixed/011"
           ],
-          "score": 0.8483577966690063
+          "score": 0.8456135392189026
         }
       ]
     },
@@ -1169,11 +1269,15 @@
       },
       "mrr": 0.5833980833980834,
       "recall_budget": 0.7777777777777778,
+      "recall_all@5": 0.7222222222222222,
+      "recall_all_budget": 0.7222222222222222,
+      "multi": 1,
       "rows": [
         {
           "id": "D01",
           "q": "Какой длины нора у корсака?",
           "rank": 2,
+          "all5": true,
           "top": [
             "corsac/fixed/002",
             "corsac/fixed/003",
@@ -1181,25 +1285,27 @@
             "corsac/fixed/006",
             "corsac/fixed/001"
           ],
-          "score": 0.9071171888315657
+          "score": 0.911841189405612
         },
         {
           "id": "D02",
           "q": "С какой скоростью может бежать степная лисица?",
           "rank": 3,
+          "all5": true,
           "top": [
             "caracal/fixed/003",
             "corsac/fixed/004",
             "corsac/fixed/005",
-            "badger/fixed/047",
-            "corsac/fixed/000"
+            "corsac/fixed/000",
+            "badger/fixed/047"
           ],
-          "score": 0.5803200381886433
+          "score": 0.5832169315624097
         },
         {
           "id": "D03",
           "q": "Какую площадь занимает домашний участок барханного кота?",
           "rank": 2,
+          "all5": true,
           "top": [
             "sand-cat/fixed/000",
             "sand-cat/fixed/004",
@@ -1207,12 +1313,13 @@
             "wolf/fixed/030",
             "wolf/fixed/031"
           ],
-          "score": 0.9543760958643721
+          "score": 0.9573449247779428
         },
         {
           "id": "D04",
           "q": "До какого возраста доживают барханные кошки в неволе?",
           "rank": 1,
+          "all5": true,
           "top": [
             "sand-cat/fixed/005",
             "sand-cat/fixed/006",
@@ -1226,12 +1333,13 @@
           "id": "D05",
           "q": "Почему беременность у перевязки длится так долго и сколько именно?",
           "rank": 1,
+          "all5": true,
           "top": [
             "marbled-polecat/fixed/006",
             "marbled-polecat/fixed/000",
             "marbled-polecat/fixed/004",
             "marbled-polecat/fixed/005",
-            "otter/fixed/033"
+            "marbled-polecat/fixed/008"
           ],
           "score": 1
         },
@@ -1239,6 +1347,7 @@
           "id": "D06",
           "q": "Сколько весит взрослая перегузна?",
           "rank": 0,
+          "all5": false,
           "top": [
             "marbled-polecat/fixed/000",
             "brown-bear/fixed/009",
@@ -1252,19 +1361,21 @@
           "id": "D07",
           "q": "Сколько видов кошачьих признаёт MDD v2.5?",
           "rank": 2,
+          "all5": true,
           "top": [
             "mdd-carnivora/fixed/001",
             "mdd-carnivora/fixed/002",
             "mdd-carnivora/fixed/000",
-            "mdd-carnivora/fixed/008",
-            "felidae/fixed/002"
+            "felidae/fixed/002",
+            "manul/fixed/008"
           ],
-          "score": 0.9045266475990861
+          "score": 0.9561750799015101
         },
         {
           "id": "D08",
           "q": "Какой охранный статус МСОП у американского красного волка Canis rufus по MDD v2.5?",
           "rank": 2,
+          "all5": true,
           "top": [
             "canidae/fixed/005",
             "mdd-carnivora/fixed/009",
@@ -1272,12 +1383,13 @@
             "mdd-carnivora/fixed/000",
             "snow-leopard/fixed/037"
           ],
-          "score": 0.8739822587281113
+          "score": 0.8677428034351946
         },
         {
           "id": "D09",
           "q": "Сколько зубов у красного волка и чем его зубная система отличается от других псовых?",
           "rank": 1,
+          "all5": true,
           "top": [
             "dhole/fixed/001",
             "canidae/fixed/007",
@@ -1291,6 +1403,7 @@
           "id": "D10",
           "q": "На какое расстояние прыгает харза, перескакивая с дерева на дерево?",
           "rank": 2,
+          "all5": true,
           "top": [
             "lynx/fixed/020",
             "yellow-throated-marten/fixed/007",
@@ -1298,12 +1411,13 @@
             "dhole/fixed/007",
             "otter/fixed/057"
           ],
-          "score": 0.9782314504704333
+          "score": 0.9717560475287665
         },
         {
           "id": "D11",
           "q": "Какую долю рациона харзы в Сихотэ-Алинском заповеднике составляют копытные?",
           "rank": 1,
+          "all5": true,
           "top": [
             "yellow-throated-marten/fixed/006",
             "otter/fixed/025",
@@ -1317,6 +1431,7 @@
           "id": "D12",
           "q": "Сколько хромосом у палласова кота?",
           "rank": 13,
+          "all5": false,
           "top": [
             "wildcat/fixed/002",
             "manul/fixed/000",
@@ -1324,12 +1439,13 @@
             "raccoon-dog/fixed/018",
             "manul/fixed/033"
           ],
-          "score": 0.4716879843841761
+          "score": 0.47578796222149905
         },
         {
           "id": "D13",
           "q": "На какой максимальной высоте зарегистрирован манул?",
           "rank": 1,
+          "all5": true,
           "top": [
             "manul/fixed/013",
             "manul/fixed/009",
@@ -1343,12 +1459,13 @@
           "id": "D14",
           "q": "Во сколько раз может меняться численность солонгоя в Забайкалье?",
           "rank": 1,
+          "all5": true,
           "top": [
             "mountain-weasel/fixed/010",
             "mountain-weasel/fixed/007",
             "mountain-weasel/fixed/004",
             "mountain-weasel/fixed/000",
-            "manul/fixed/013"
+            "mountain-weasel/fixed/006"
           ],
           "score": 1
         },
@@ -1356,6 +1473,7 @@
           "id": "D15",
           "q": "А на какое расстояние он прыгает, когда охотится?",
           "rank": 2,
+          "all5": true,
           "top": [
             "lynx/fixed/020",
             "caracal/fixed/003",
@@ -1363,12 +1481,13 @@
             "caracal/fixed/005",
             "caracal/fixed/006"
           ],
-          "score": 0.7286652564781846
+          "score": 0.7405619085102387
         },
         {
           "id": "D16",
           "q": "А сколько их всего осталось?",
           "rank": 1,
+          "all5": false,
           "top": [
             "manul/fixed/025",
             "red-panda/fixed/010",
@@ -1382,6 +1501,7 @@
           "id": "D17",
           "q": "Сколько хаусов обитает на территории России?",
           "rank": 0,
+          "all5": false,
           "top": [
             "jungle-cat/fixed/000",
             "jungle-cat/fixed/003",
@@ -1395,6 +1515,7 @@
           "id": "D18",
           "q": "Сколько снежных леопардов оставалось в дикой природе в 2020 году по оценке WWF?",
           "rank": 11,
+          "all5": false,
           "top": [
             "snow-leopard/fixed/039",
             "snow-leopard/fixed/051",
@@ -1402,7 +1523,7 @@
             "snow-leopard/fixed/000",
             "amur-leopard/fixed/079"
           ],
-          "score": 0.6054884057755554
+          "score": 0.6066263982683487
         }
       ]
     },
@@ -1417,13 +1538,17 @@
         "3": 0.75,
         "5": 0.75
       },
-      "mrr": 0.7066761363636364,
+      "mrr": 0.7071969696969697,
       "recall_budget": 0.75,
+      "recall_all@5": 0.625,
+      "recall_all_budget": 0.625,
+      "multi": 3,
       "rows": [
         {
           "id": "T01",
           "q": "Какую памятную монету Банк России выпустил в честь перевязки, когда и каким тиражом?",
           "rank": 1,
+          "all5": true,
           "top": [
             "marbled-polecat/fixed/008",
             "amur-leopard/fixed/086",
@@ -1437,19 +1562,21 @@
           "id": "T02",
           "q": "Какова суточная норма пищи взрослого самца солонгоя?",
           "rank": 1,
+          "all5": true,
           "top": [
             "mountain-weasel/fixed/010",
             "lynx/fixed/022",
             "lynx/fixed/021",
             "badger/fixed/043",
-            "otter/fixed/029"
+            "mountain-weasel/fixed/000"
           ],
           "score": 1
         },
         {
           "id": "T03",
           "q": "Сколько видов малых (красных) панд признаёт MDD v2.5?",
-          "rank": 16,
+          "rank": 15,
+          "all5": false,
           "top": [
             "red-panda/fixed/009",
             "mdd-carnivora/fixed/000",
@@ -1457,12 +1584,13 @@
             "red-panda/fixed/004",
             "red-panda/fixed/005"
           ],
-          "score": 0.6195538438091357
+          "score": 0.6303120613234496
         },
         {
           "id": "T04",
           "q": "Какое расстояние обычно длится погоня красного волка за добычей и с какой скоростью он бежит?",
           "rank": 1,
+          "all5": true,
           "top": [
             "dhole/fixed/008",
             "wolf/fixed/023",
@@ -1476,25 +1604,27 @@
           "id": "T05",
           "q": "У кого беременность длится дольше — у каракала или у камышового кота, и насколько?",
           "rank": 2,
+          "all5": true,
           "top": [
             "jungle-cat/fixed/000",
-            "jungle-cat/fixed/002",
             "caracal/fixed/004",
+            "jungle-cat/fixed/002",
             "jungle-cat/fixed/003",
             "caracal/fixed/006"
           ],
-          "score": 0.9664590446347766
+          "score": 0.9733964847882651
         },
         {
           "id": "T06",
           "q": "Какой статус МСОП указан в MDD v2.5 у кошки, которую в Индии называют «гепардом для бедных»?",
           "rank": 1,
+          "all5": false,
           "top": [
             "caracal/fixed/005",
             "dhole/fixed/011",
             "mdd-carnivora/fixed/000",
-            "mdd-carnivora/fixed/028",
-            "felidae/fixed/002"
+            "felidae/fixed/002",
+            "mdd-carnivora/fixed/028"
           ],
           "score": 1
         },
@@ -1502,10 +1632,11 @@
           "id": "T07",
           "q": "Сколько часов в день кошачий медведь тратит на еду?",
           "rank": 1,
+          "all5": true,
           "top": [
             "red-panda/fixed/005",
-            "polar-bear/fixed/027",
             "manul/fixed/020",
+            "polar-bear/fixed/027",
             "brown-bear/fixed/032",
             "brown-bear/fixed/044"
           ],
@@ -1515,6 +1646,7 @@
           "id": "T08",
           "q": "А сколько она весит?",
           "rank": 11,
+          "all5": false,
           "top": [
             "yellow-throated-marten/fixed/012",
             "yellow-throated-marten/fixed/004",
@@ -1522,16 +1654,18 @@
             "yellow-throated-marten/fixed/007",
             "yellow-throated-marten/fixed/010"
           ],
-          "score": 0.8081167792868778
+          "score": 0.809033377288192
         }
       ]
     }
   ],
   "conclusion": [
-    "structure: recall@1 0.50, recall@3 0.73, recall@5 0.81, MRR 0.64 против 0.38, 0.69, 0.73, 0.53 у fixed (dev+test, 26 вопросов, поиск dense) — structure лучше.",
-    "Разорвано доказательств: 0 % у structure против 0 % у fixed; чанков на стыке разделов 3 % против 43 %; разрезанных разделов 47 % против 72 %; оборванных посреди предложения 0 % против 99 %.",
-    "При одинаковом бюджете 1500 токенов recall 0.85 у structure против 0.73 у fixed; чанков 777 против 884, p50 292 против 291 токенов, перекрытие 0 % против 14 %.",
-    "На test (8 вопросов с доказательствами): recall@5 0.75 у structure против 0.62 у fixed, MRR 0.54 против 0.50.",
-    "BM25 (справочно): structure — recall@5 0.85 у BM25 против 0.81 у dense (-0.04); fixed — recall@5 0.77 у BM25 против 0.73 у dense (-0.04)."
+    "structure: recall@5 21 из 26 против 19 из 26 у fixed (+2), recall@1 0.50 против 0.42, recall@3 0.73 против 0.69, MRR 0.64 против 0.56 (dev+test, поиск dense).",
+    "Парно по 26 вопросам: ранг первого релевантного лучше у structure в 9 вопросах, у fixed — в 6, равен в 11; в топ-5 только у structure — 2, только у fixed — 0 — разница в пределах шума (перевес по recall@5 — 2, порог — 3 вопроса).",
+    "Все доказательства вопроса в топ-5 (recall_all@5): 20 из 26 у structure против 18 из 26 у fixed; в бюджете 1500 токенов — 21 против 18 (вопросов с несколькими доказательствами 4).",
+    "Доказательство целиком в одном чанке: 100 % у structure против 97 % у fixed (из 30); разорвано (покрыто \u003c 80 %) 0 % против 0 %; чанков на стыке разделов 3 % против 43 %; разрезанных разделов 47 % против 72 %; оборванных посреди предложения 0 % против 99 %.",
+    "При одинаковом бюджете 1500 токенов первый релевантный нашёлся в 22 из 26 вопросов у structure против 19 из 26 у fixed; чанков 777 против 884, p50 292 против 291 токенов, перекрытие 0 % против 14 %.",
+    "На test (вопросов с доказательствами: 8): recall@5 6 против 5, MRR 0.54 против 0.51 — на такой выборке это иллюстрация, не вывод.",
+    "BM25 (справочно): structure — recall@5 21 из 26 у dense против 21 из 26 у BM25 (+0); ранг первого релевантного лучше у dense в 6 вопросах, у BM25 — в 8, равен в 12; в топ-5 только у dense — 3, только у BM25 — 3 — разница в пределах шума (перевес по recall@5 — 0, порог — 3 вопроса); fixed — recall@5 19 из 26 у dense против 20 из 26 у BM25 (-1); ранг первого релевантного лучше у dense в 6 вопросах, у BM25 — в 8, равен в 12; в топ-5 только у dense — 2, только у BM25 — 3 — разница в пределах шума (перевес по recall@5 — 1, порог — 3 вопроса)."
   ]
 }

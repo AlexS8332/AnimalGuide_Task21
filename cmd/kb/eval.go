@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/AlexS8332/AnimalGuide_Task21/internal/kb"
 )
@@ -17,10 +19,10 @@ func init() {
 
 func runEval(ctx context.Context, args []string, out, errOut io.Writer) int {
 	fs := newFlagSet("eval", "[флаги]", errOut)
-	dbPath := fs.String("db", defaultDB, "файл базы знаний")
+	dbPath := dbFlag(fs)
 	questions := fs.String("questions", "eval/questions.json", "контрольные вопросы")
-	mdPath := fs.String("out", "examples/kb/chunking.md", "куда записать отчёт markdown (пусто — не писать)")
-	jsonPath := fs.String("json", "", "куда записать отчёт JSON (пусто — не писать)")
+	mdPath := fs.String("out", defaultReport, "куда записать отчёт markdown (пусто — не писать); JSON — рядом, с расширением .json")
+	jsonPath := fs.String("json", "", "куда записать отчёт JSON (пусто — рядом с -out)")
 	bm25 := fs.Bool("bm25", false, "добавить справочные строки BM25")
 	budget := fs.Int("budget", kb.DefaultBudget, "бюджет токенов топа для recall при одинаковом объёме")
 	which := embedderFlag(fs)
@@ -38,7 +40,7 @@ func runEval(ctx context.Context, args []string, out, errOut io.Writer) int {
 		return exitFailed
 	}
 	defer st.Close()
-	emb, err := pickEmbedder(ctx, *which, errOut)
+	emb, err := pickEmbedder(ctx, which, errOut)
 	if err != nil {
 		fmt.Fprintln(errOut, "ошибка:", err)
 		return exitUsage
@@ -54,6 +56,18 @@ func runEval(ctx context.Context, args []string, out, errOut io.Writer) int {
 	}
 	for _, line := range r.Conclusion {
 		fmt.Fprintln(out, "- "+line)
+	}
+	explicit := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
+	if why := fallback(r); why != "" && !explicit["out"] {
+		// Закоммиченный отчёт — живое сравнение с векторами; отчёт по BM25
+		// поверх него выдал бы откат за результат.
+		fmt.Fprintf(errOut, "ошибка: векторный поиск не состоялся (%s) — отчёт по BM25 не записан в %s.\n"+
+			"  Поднимите эмбеддер (-embed-url, EMBED_BASE_URL) или укажите путь отчёта явно: -out <файл>.\n", why, *mdPath)
+		return exitFailed
+	}
+	if *mdPath != "" && *jsonPath == "" {
+		*jsonPath = strings.TrimSuffix(*mdPath, filepath.Ext(*mdPath)) + ".json"
 	}
 	if *mdPath != "" {
 		if err := writeFile(*mdPath, []byte(r.Markdown())); err != nil {
@@ -74,6 +88,20 @@ func runEval(ctx context.Context, args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(out, "JSON:", *jsonPath)
 	}
 	return exitOK
+}
+
+// defaultReport — отчёт сравнения в репозитории (рядом — chunking.json).
+const defaultReport = "examples/kb/chunking.md"
+
+// fallback — почему отчёт не по векторам: dense откатился на BM25 (нет
+// эмбеддера, индекс без векторов, эмбеддер упал); пусто — dense был.
+func fallback(r kb.Report) string {
+	for _, x := range r.Retrieval {
+		if x.Fallback != "" {
+			return x.Fallback
+		}
+	}
+	return ""
 }
 
 func writeFile(path string, data []byte) error {

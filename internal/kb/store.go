@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,12 +23,18 @@ const component = "kb"
 
 // migrations — схема kb.db. Шаги только добавляются в конец.
 //
-// kb_fts — обычная (не external content) таблица FTS5: текст в ней — это
+// FTS — обычная (не external content) таблица FTS5: текст в ней — это
 // EmbedText чанка (заголовок статьи и путь раздела плюс текст), то есть не
 // то, что лежит в kb_chunks.text, и синхронизировать её триггерами было бы
 // нечем. Пара мегабайт дубля — дешевле, чем хитрость. Токенизатор trigram
 // ищет подстроки, поэтому «манул» находит и «манула», и «манулов» — для
 // русского без стеммера это лучшее, что есть в стандартном SQLite.
+//
+// Шаг 2: общая kb_fts заменяется таблицами kb_fts_<index_id> — своя на
+// индекс. bm25() считает IDF и среднюю длину документа по всей таблице, и
+// в общей таблице ранги BM25 индекса structure зависели от того, собран ли
+// рядом fixed. Таблицы индексов создаёт Build (и Open — для индексов,
+// собранных до шага 2: их текст FTS восстанавливается из kb_chunks).
 var migrations = []string{`
 CREATE TABLE kb_meta (
 	key   TEXT PRIMARY KEY,
@@ -94,6 +102,8 @@ CREATE TABLE kb_reports (
 	created TEXT NOT NULL,
 	report  TEXT NOT NULL
 );
+`, `
+DROP TABLE kb_fts;
 `}
 
 // Open открывает (создаёт) kb.db и применяет миграции компонента "kb".
@@ -106,7 +116,145 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		d.Close()
 		return nil, err
 	}
+	s := &Store{db: d}
+	if err := s.restoreFTS(ctx); err != nil {
+		d.Close()
+		return nil, fmt.Errorf("FTS индексов: %w", err)
+	}
+	return s, nil
+}
+
+// OpenCache открывает чужую kb.db только для чтения — как общий кэш
+// эмбеддингов (embed.Layered.Shared): без миграций и без записи, файл
+// остаётся как был. Пользоваться можно только GetVec.
+func OpenCache(ctx context.Context, path string) (*Store, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, err
+	}
+	d, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?mode=ro&_pragma=busy_timeout(5000)")
+	if err != nil {
+		return nil, err
+	}
+	var n int
+	if err := d.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'kb_embed_cache'`).Scan(&n); err != nil {
+		d.Close()
+		return nil, fmt.Errorf("кэш %s: %w", path, err)
+	}
+	if n == 0 {
+		d.Close()
+		return nil, fmt.Errorf("в %s нет kb_embed_cache — это не база знаний", path)
+	}
 	return &Store{db: d}, nil
+}
+
+// CacheSize — сколько векторов модели в кэше эмбеддингов.
+func (s *Store) CacheSize(ctx context.Context, model string) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM kb_embed_cache WHERE model = ?`, model).Scan(&n)
+	return n, err
+}
+
+// ftsTable — имя таблицы FTS индекса. id индекса — имя стратегии; в имя
+// таблицы попадают только [a-z0-9_], иначе ошибка (имя таблицы в SQL
+// вставляется строкой: параметром его не передать).
+func ftsTable(id string) (string, error) {
+	if id == "" {
+		return "", errors.New("пустой id индекса")
+	}
+	for _, r := range id {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_') {
+			return "", fmt.Errorf("id индекса %q: допустимы a-z, 0-9 и _", id)
+		}
+	}
+	return "kb_fts_" + id, nil
+}
+
+// querier — общее у *sql.DB и *sql.Tx.
+type querier interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// fillFTS пересоздаёт таблицу FTS индекса и кладёт в неё EmbedText чанков.
+func fillFTS(ctx context.Context, tx querier, id string, chunks []Chunk) error {
+	t, err := ftsTable(id)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS `+t); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `CREATE VIRTUAL TABLE `+t+` USING fts5 (
+		text,
+		chunk_id UNINDEXED,
+		tokenize = 'trigram'
+	)`); err != nil {
+		return err
+	}
+	for _, c := range chunks {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO `+t+` (text, chunk_id) VALUES (?, ?)`, c.EmbedText(), c.ID); err != nil {
+			return fmt.Errorf("чанк %s в FTS: %w", c.ID, err)
+		}
+	}
+	return nil
+}
+
+// restoreFTS — таблицы FTS индексов, собранных до шага миграции 2 (или
+// потерянных): текст FTS — EmbedText чанка, он целиком восстанавливается
+// из kb_chunks, пересобирать индекс и кодировать заново не нужно.
+func (s *Store) restoreFTS(ctx context.Context) error {
+	ids, err := indexIDs(ctx, s.db)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		t, err := ftsTable(id)
+		if err != nil {
+			return err
+		}
+		var n int
+		if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, t).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			continue
+		}
+		chunks, err := s.Chunks(ctx, id, "")
+		if err != nil {
+			return err
+		}
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		if err := fillFTS(ctx, tx, id, chunks); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// indexIDs — id индексов базы.
+func indexIDs(ctx context.Context, q querier) ([]string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT index_id FROM kb_indexes ORDER BY index_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 // Close закрывает базу.
@@ -122,7 +270,12 @@ func (s *Store) Close() error {
 // тексты относятся к другому корпусу, и искать по ним — значит цитировать
 // то, чего в базе уже нет.
 func (s *Store) PutCorpus(ctx context.Context, docs []corpus.Doc, m corpus.Manifest) error {
-	old, _ := s.meta(ctx, "corpus_sha")
+	old, err := s.meta(ctx, "corpus_sha")
+	if err != nil {
+		// Не знаем прежний corpus_sha — не знаем, устарели ли индексы:
+		// лучше отказать, чем оставить индексы чужого корпуса.
+		return fmt.Errorf("прежний corpus_sha: %w", err)
+	}
 	raw, err := json.Marshal(m)
 	if err != nil {
 		return err
@@ -154,7 +307,18 @@ func (s *Store) PutCorpus(ctx context.Context, docs []corpus.Doc, m corpus.Manif
 		}
 	}
 	if old != "" && old != m.CorpusSHA {
-		for _, q := range []string{`DELETE FROM kb_chunks`, `DELETE FROM kb_fts`, `DELETE FROM kb_indexes`} {
+		ids, err := indexIDs(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if t, err := ftsTable(id); err == nil {
+				if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS `+t); err != nil {
+					return err
+				}
+			}
+		}
+		for _, q := range []string{`DELETE FROM kb_chunks`, `DELETE FROM kb_indexes`} {
 			if _, err := tx.ExecContext(ctx, q); err != nil {
 				return err
 			}
@@ -322,10 +486,8 @@ func (s *Store) Build(ctx context.Context, ch Chunker, emb embed.Embedder, p Pro
 		return IndexInfo{}, err
 	}
 	defer tx.Rollback()
-	for _, q := range []string{`DELETE FROM kb_chunks WHERE index_id = ?`, `DELETE FROM kb_fts WHERE index_id = ?`} {
-		if _, err := tx.ExecContext(ctx, q, info.ID); err != nil {
-			return IndexInfo{}, err
-		}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM kb_chunks WHERE index_id = ?`, info.ID); err != nil {
+		return IndexInfo{}, err
 	}
 	insChunk, err := tx.PrepareContext(ctx, `INSERT INTO kb_chunks
 		(chunk_id, index_id, doc_id, ord, source, title, section, path, start, "end", text, mixed, tokens, sha, url, revid, vec)
@@ -334,11 +496,6 @@ func (s *Store) Build(ctx context.Context, ch Chunker, emb embed.Embedder, p Pro
 		return IndexInfo{}, err
 	}
 	defer insChunk.Close()
-	insFTS, err := tx.PrepareContext(ctx, `INSERT INTO kb_fts (text, chunk_id, index_id) VALUES (?, ?, ?)`)
-	if err != nil {
-		return IndexInfo{}, err
-	}
-	defer insFTS.Close()
 	for i, c := range chunks {
 		path, _ := json.Marshal(c.Path)
 		var blob []byte
@@ -349,9 +506,11 @@ func (s *Store) Build(ctx context.Context, ch Chunker, emb embed.Embedder, p Pro
 			string(path), c.Start, c.End, c.Text, c.Mixed, c.Tokens, c.SHA, c.URL, c.RevID, blob); err != nil {
 			return IndexInfo{}, fmt.Errorf("чанк %s: %w", c.ID, err)
 		}
-		if _, err := insFTS.ExecContext(ctx, c.EmbedText(), c.ID, info.ID); err != nil {
-			return IndexInfo{}, fmt.Errorf("чанк %s в FTS: %w", c.ID, err)
-		}
+	}
+	// FTS — своя таблица на индекс, пересоздаётся целиком: статистика BM25
+	// (IDF, средняя длина) — только по чанкам этого индекса.
+	if err := fillFTS(ctx, tx, info.ID, chunks); err != nil {
+		return IndexInfo{}, err
 	}
 	info.BuiltAt = time.Now().UTC()
 	info.Seconds = time.Since(started).Seconds()
@@ -526,7 +685,11 @@ func (s *Store) indexBytes(ctx context.Context, id string) (int64, error) {
 	if err := s.db.QueryRowContext(ctx, `SELECT SUM(length(CAST(text AS BLOB))) + SUM(COALESCE(length(vec), 0)) FROM kb_chunks WHERE index_id = ?`, id).Scan(&a); err != nil {
 		return 0, err
 	}
-	if err := s.db.QueryRowContext(ctx, `SELECT SUM(length(CAST(text AS BLOB))) FROM kb_fts WHERE index_id = ?`, id).Scan(&b); err != nil {
+	t, err := ftsTable(id)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT SUM(length(CAST(text AS BLOB))) FROM `+t).Scan(&b); err != nil {
 		return 0, err
 	}
 	return a.Int64 + b.Int64, nil

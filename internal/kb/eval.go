@@ -110,7 +110,14 @@ type IndexStats struct {
 	// OverlapShare — доля символов, попавших в индекс повторно (перекрытие).
 	OverlapShare float64 `json:"overlap_share"`
 	// MidSentence — доля чанков, оборванных посреди предложения.
-	MidSentence  float64 `json:"mid_sentence"`
+	MidSentence float64 `json:"mid_sentence"`
+	// WholeEvidence — доля доказательств (вопросов сравниваемых наборов),
+	// которые целиком (100 %) лежат в одном чанке. «Разорвано» (покрыто
+	// меньше EvidenceCover) при коротких цитатах почти всегда 0 у обеих
+	// стратегий; эта метрика строже и различает их.
+	WholeEvidence float64 `json:"whole_evidence"`
+	// Evidence — сколько доказательств в знаменателе WholeEvidence.
+	Evidence     int     `json:"evidence"`
 	BuildSeconds float64 `json:"build_seconds"`
 	Bytes        int64   `json:"bytes"`
 }
@@ -128,6 +135,15 @@ type Retrieval struct {
 	MRR            float64         `json:"mrr"`
 	// RecallBudget — то же при одинаковом бюджете токенов топа.
 	RecallBudget float64 `json:"recall_budget"`
+	// RecallAll5 — доля вопросов, у которых в топ-5 нашлись ВСЕ
+	// доказательства (каждое покрыто каким-нибудь чанком топа): для
+	// многофактных вопросов (сравнение, multihop) одного найденного факта
+	// мало. У вопроса с одним доказательством совпадает с recall@5.
+	RecallAll5 float64 `json:"recall_all@5"`
+	// RecallAllBudget — то же в пределах бюджета токенов.
+	RecallAllBudget float64 `json:"recall_all_budget"`
+	// Multi — сколько вопросов набора с двумя и более доказательствами.
+	Multi int `json:"multi"`
 	// Fallback — почему режим не dense, хотя просили dense (по первому
 	// вопросу, где был откат); пусто — отката не было.
 	Fallback string `json:"fallback,omitempty"`
@@ -137,9 +153,11 @@ type Retrieval struct {
 
 // RetrievalRow — вопрос в отчёте.
 type RetrievalRow struct {
-	ID    string   `json:"id"`
-	Q     string   `json:"q"`
-	Rank  int      `json:"rank"`
+	ID   string `json:"id"`
+	Q    string `json:"q"`
+	Rank int    `json:"rank"`
+	// All5 — все доказательства вопроса в топ-5.
+	All5  bool     `json:"all5"`
 	Top   []string `json:"top"` // chunk_id топ-5
 	Score float64  `json:"score"`
 }
